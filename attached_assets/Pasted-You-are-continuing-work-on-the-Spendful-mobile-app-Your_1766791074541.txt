@@ -1,0 +1,89 @@
+You are continuing work on the Spendful mobile app.
+
+Your task is to FINALIZE and POLISH the **Daily Prompt screen**.
+Do NOT add new features. Do NOT refactor unrelated code.
+
+────────────────────────
+GOAL
+────────────────────────
+The Daily Prompt must feel calm, fast, and frictionless.
+It should take under 10 seconds to complete and feel non-judgmental.
+
+────────────────────────
+REQUIREMENTS (MUST ALL BE MET)
+────────────────────────
+
+1) ONE LOG PER DAY
+- Each calendar day (local date YYYY-MM-DD) can only have ONE entry
+- If a log already exists for today:
+  - Show a message: “You’ve checked in today.”
+  - Disable the Yes / No buttons
+  - Do NOT allow re-logging unless explicitly editing (no edit UI needed yet)
+
+2) MAIN QUESTION UI
+- Display the question prominently:
+  “Did you spend money today?”
+- Two buttons:
+  - “No”
+  - “Yes”
+- Buttons must be equal visual weight
+- Calm styling (no red/green contrast, no animations)
+
+3) NO FLOW
+- If user taps “No”:
+  - Immediately save today’s entry with did_spend = false
+  - Show confirmation text:
+    “Thanks. See you tomorrow 🌱”
+  - Do NOT navigate away
+  - Do NOT ask follow-up questions
+
+4) YES FLOW
+- If user taps “Yes”:
+  - Expand inline (same screen, no navigation)
+  - Show:
+    - Amount input (numeric keyboard, required)
+    - Optional note input (clearly marked optional)
+  - On Save:
+    - Save today’s entry
+    - Show the SAME confirmation text:
+      “Thanks. See you tomorrow 🌱”
+    - Do NOT navigate away
+
+5) CONFIRMATION STATE
+- Confirmation message must be identical for Yes and No flows
+- After confirmation, prevent additional input for today
+
+6) DATA RULES
+- Use local date (YYYY-MM-DD), not UTC day
+- If did_spend = false → amount must be NULL
+- If did_spend = true → amount is required
+- Update existing entry if one exists for today (do not insert duplicates)
+
+────────────────────────
+FILES LIKELY INVOLVED
+────────────────────────
+- DailyPrompt.tsx (or equivalent screen)
+- dailyLogs.service.ts (or db helper)
+- db.ts / sqlite helper
+
+Only modify files necessary to complete this task.
+
+────────────────────────
+WHAT NOT TO DO
+────────────────────────
+❌ Do not redesign Weekly or Monthly screens  
+❌ Do not add categories, budgets, or totals  
+❌ Do not add navigation changes  
+❌ Do not add analytics  
+❌ Do not refactor unrelated code  
+
+────────────────────────
+DEFINITION OF DONE
+────────────────────────
+- Daily Prompt feels calm and simple
+- User can only log once per day
+- UX matches requirements exactly
+- No console errors
+- Works offline
+
+Complete ONLY this task.

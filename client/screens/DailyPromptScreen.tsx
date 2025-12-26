@@ -1,31 +1,23 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   StyleSheet,
   TextInput,
   Pressable,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withSequence,
-  withDelay,
-  FadeIn,
-  FadeOut,
-} from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { Spacing, BorderRadius, Colors } from "@/constants/theme";
+import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
   getTodayDate,
@@ -39,8 +31,6 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 type ScreenState = "loading" | "prompt" | "amount" | "confirmed" | "already_logged";
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export default function DailyPromptScreen() {
   const insets = useSafeAreaInsets();
@@ -84,13 +74,19 @@ export default function DailyPromptScreen() {
     }, [loadTodayData])
   );
 
+  const triggerHaptic = () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
   const handleNoSpend = async () => {
     try {
       setIsSaving(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      triggerHaptic();
 
       const today = getTodayDate();
-      const log = await saveDailyLog(today, false);
+      const log = await saveDailyLog(today, false, null, null);
       setTodayLog(log);
       setScreenState("confirmed");
     } catch (error) {
@@ -101,36 +97,28 @@ export default function DailyPromptScreen() {
   };
 
   const handleYesSpend = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic();
     setScreenState("amount");
   };
 
   const handleSaveSpend = async () => {
+    const parsedAmount = parseFloat(amount.replace(/[^0-9.]/g, ""));
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      return;
+    }
+
     try {
       setIsSaving(true);
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      triggerHaptic();
 
       const today = getTodayDate();
-      const parsedAmount = parseFloat(amount.replace(/[^0-9.]/g, "")) || 0;
-      const log = await saveDailyLog(today, true, parsedAmount, note || null);
+      const log = await saveDailyLog(today, true, parsedAmount, note.trim() || null);
       setTodayLog(log);
       setScreenState("confirmed");
     } catch (error) {
       console.error("Error saving log:", error);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleEdit = () => {
-    if (todayLog) {
-      if (todayLog.did_spend) {
-        setAmount(todayLog.amount?.toString() || "");
-        setNote(todayLog.note || "");
-        setScreenState("amount");
-      } else {
-        setScreenState("prompt");
-      }
     }
   };
 
@@ -144,6 +132,11 @@ export default function DailyPromptScreen() {
     return today.toLocaleDateString(undefined, options);
   };
 
+  const isValidAmount = () => {
+    const parsedAmount = parseFloat(amount.replace(/[^0-9.]/g, ""));
+    return !isNaN(parsedAmount) && parsedAmount > 0;
+  };
+
   const renderContent = () => {
     switch (screenState) {
       case "loading":
@@ -155,16 +148,13 @@ export default function DailyPromptScreen() {
 
       case "prompt":
         return (
-          <Animated.View
-            entering={FadeIn.duration(300)}
-            style={styles.centerContent}
-          >
+          <View style={styles.centerContent}>
             <ThemedText type="h2" style={styles.question}>
               Did you spend money today?
             </ThemedText>
 
             <View style={styles.buttonRow}>
-              <AnimatedPressable
+              <Pressable
                 style={[
                   styles.choiceButton,
                   { backgroundColor: theme.backgroundDefault },
@@ -172,13 +162,12 @@ export default function DailyPromptScreen() {
                 onPress={handleNoSpend}
                 disabled={isSaving}
               >
-                <Feather name="x" size={28} color={theme.text} />
-                <ThemedText type="h4" style={styles.choiceText}>
+                <ThemedText type="h3" style={styles.choiceText}>
                   No
                 </ThemedText>
-              </AnimatedPressable>
+              </Pressable>
 
-              <AnimatedPressable
+              <Pressable
                 style={[
                   styles.choiceButton,
                   { backgroundColor: theme.backgroundDefault },
@@ -186,21 +175,17 @@ export default function DailyPromptScreen() {
                 onPress={handleYesSpend}
                 disabled={isSaving}
               >
-                <Feather name="check" size={28} color={theme.text} />
-                <ThemedText type="h4" style={styles.choiceText}>
+                <ThemedText type="h3" style={styles.choiceText}>
                   Yes
                 </ThemedText>
-              </AnimatedPressable>
+              </Pressable>
             </View>
-          </Animated.View>
+          </View>
         );
 
       case "amount":
         return (
-          <Animated.View
-            entering={FadeIn.duration(300)}
-            style={styles.amountContent}
-          >
+          <View style={styles.amountContent}>
             <ThemedText type="h3" style={styles.amountTitle}>
               How much did you spend?
             </ThemedText>
@@ -259,21 +244,27 @@ export default function DailyPromptScreen() {
 
               <Button
                 onPress={handleSaveSpend}
-                disabled={isSaving || !amount}
+                disabled={isSaving || !isValidAmount()}
                 style={styles.saveButton}
               >
                 {isSaving ? "Saving..." : "Save"}
               </Button>
             </View>
-          </Animated.View>
+          </View>
         );
 
       case "confirmed":
         return (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            style={styles.centerContent}
-          >
+          <View style={styles.centerContent}>
+            <ThemedText type="h2" style={styles.confirmTitle}>
+              Thanks. See you tomorrow {"\u{1F331}"}
+            </ThemedText>
+          </View>
+        );
+
+      case "already_logged":
+        return (
+          <View style={styles.centerContent}>
             <View
               style={[
                 styles.confirmIcon,
@@ -284,48 +275,12 @@ export default function DailyPromptScreen() {
             </View>
 
             <ThemedText type="h3" style={styles.confirmTitle}>
-              Thanks. See you tomorrow
+              You've checked in today.
             </ThemedText>
 
             {todayLog?.did_spend ? (
               <ThemedText type="body" secondary style={styles.confirmDetail}>
-                Logged ${todayLog.amount?.toFixed(2) || "0.00"}
-                {todayLog.note ? ` - ${todayLog.note}` : ""}
-              </ThemedText>
-            ) : (
-              <ThemedText type="body" secondary style={styles.confirmDetail}>
-                No spending logged for today
-              </ThemedText>
-            )}
-
-            <Pressable onPress={handleEdit} style={styles.editLink}>
-              <ThemedText type="link">Edit today's entry</ThemedText>
-            </Pressable>
-          </Animated.View>
-        );
-
-      case "already_logged":
-        return (
-          <Animated.View
-            entering={FadeIn.duration(300)}
-            style={styles.centerContent}
-          >
-            <View
-              style={[
-                styles.confirmIcon,
-                { backgroundColor: theme.accentLight },
-              ]}
-            >
-              <Feather name="check-circle" size={48} color={theme.accent} />
-            </View>
-
-            <ThemedText type="h3" style={styles.confirmTitle}>
-              Today is logged
-            </ThemedText>
-
-            {todayLog?.did_spend ? (
-              <ThemedText type="body" secondary style={styles.confirmDetail}>
-                You spent ${todayLog.amount?.toFixed(2) || "0.00"}
+                Spent ${todayLog.amount?.toFixed(2) || "0.00"}
                 {todayLog.note ? ` - ${todayLog.note}` : ""}
               </ThemedText>
             ) : (
@@ -333,11 +288,7 @@ export default function DailyPromptScreen() {
                 No spending today
               </ThemedText>
             )}
-
-            <Pressable onPress={handleEdit} style={styles.editLink}>
-              <ThemedText type="link">Edit today's entry</ThemedText>
-            </Pressable>
-          </Animated.View>
+          </View>
         );
     }
   };
@@ -440,14 +391,13 @@ const styles = StyleSheet.create({
   },
   choiceButton: {
     flex: 1,
-    height: 120,
+    height: 100,
     borderRadius: BorderRadius.xl,
     alignItems: "center",
     justifyContent: "center",
-    gap: Spacing.sm,
   },
   choiceText: {
-    marginTop: Spacing.xs,
+    textAlign: "center",
   },
   amountContent: {
     width: "100%",
@@ -511,10 +461,6 @@ const styles = StyleSheet.create({
   },
   confirmDetail: {
     textAlign: "center",
-    marginBottom: Spacing.xl,
-  },
-  editLink: {
-    padding: Spacing.md,
   },
   navButtons: {
     flexDirection: "row",
