@@ -1,0 +1,85 @@
+# Spendful - Daily Spend Awareness App
+
+## Overview
+
+Spendful is a calm, minimal daily spend awareness mobile application built with Expo (React Native). It's deliberately NOT a budgeting app - instead, it focuses on mindful awareness through a single daily question: "Did you spend money today?"
+
+The app follows an ethical, non-manipulative design philosophy with a calm, non-judgmental tone throughout. It's designed to be offline-first with local SQLite storage, no authentication required, and minimal external dependencies.
+
+**Key Features:**
+- Single daily action: log whether you spent money
+- Weekly and monthly spend awareness summaries
+- Optional daily reminder notifications
+- Freemium model with 14-day free history access
+- Cross-platform support (iOS, Android, Web)
+
+## User Preferences
+
+Preferred communication style: Simple, everyday language.
+
+## System Architecture
+
+### Frontend Architecture
+- **Framework**: Expo SDK 54 with React Native 0.81
+- **Language**: TypeScript with strict mode
+- **Navigation**: Stack-only navigation using React Navigation Native Stack (no tabs or drawer)
+- **State Management**: TanStack React Query for async data, React useState for local state
+- **Animations**: React Native Reanimated for smooth, spring-based animations
+- **Styling**: React Native StyleSheet with a centralized theme system (Colors, Spacing, Typography)
+
+### Navigation Flow
+Linear stack navigation from onboarding to daily prompt:
+1. Onboarding (4-screen intro sequence)
+2. Daily Prompt (main/home screen)
+3. Weekly Summary (accessible from Daily Prompt)
+4. Monthly Overview (accessible from Daily Prompt)
+5. Paywall (modal for premium features)
+6. Settings (app configuration)
+
+### Data Storage
+- **Local Storage**: AsyncStorage for offline-first data persistence (cross-platform: web, iOS, Android)
+- **Data Models**:
+  - `daily_logs`: Stores daily spending entries (date, did_spend, amount, note)
+  - `app_settings`: Configuration (reminder time, notifications, free history days, onboarding status)
+  - `subscriptions`: Subscription status tracking
+- **Note**: Changed from expo-sqlite to AsyncStorage because expo-sqlite doesn't bundle on web platform. AsyncStorage works on all platforms and is sufficient for this app's simple data model.
+
+### Backend Architecture
+- **Server**: Express.js server for web deployment and API endpoints
+- **Database (Server)**: PostgreSQL with Drizzle ORM for server-side data (configured but minimal usage since app is offline-first)
+- **Purpose**: Primarily serves the landing page and handles web deployment; the mobile app operates independently with local SQLite
+
+### Path Aliases
+- `@/` → `./client/`
+- `@shared/` → `./shared/`
+
+### Component Architecture
+- Reusable themed components: `ThemedView`, `ThemedText`, `Button`, `Card`
+- Error boundary with fallback UI
+- Keyboard-aware scroll view with cross-platform compatibility
+- Custom hooks for theme, screen options, and color scheme
+
+## External Dependencies
+
+### Core Mobile Dependencies
+- **@react-native-async-storage/async-storage**: Local storage for offline-first data persistence (cross-platform)
+- **expo-notifications**: Daily reminder notifications
+- **@react-navigation/native-stack**: Stack-based navigation
+- **react-native-reanimated**: Animation library
+- **react-native-gesture-handler**: Touch gesture handling
+- **@tanstack/react-query**: Data fetching and caching
+
+### Server Dependencies
+- **express**: Web server framework
+- **pg**: PostgreSQL client for server-side database
+- **drizzle-orm**: TypeScript ORM for database operations
+- **http-proxy-middleware**: Development proxy for Expo bundler
+
+### In-App Purchases (Planned)
+- Apple IAP and Google Play Billing integration planned for premium features
+- Currently stubbed/mocked in PaywallScreen
+
+### Build & Development
+- **expo**: Core Expo SDK and tooling
+- **tsx**: TypeScript execution for server
+- **drizzle-kit**: Database migration tooling
