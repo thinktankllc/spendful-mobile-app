@@ -1,0 +1,161 @@
+You are a senior full-stack mobile engineer and product designer.
+
+Build a complete cross-platform mobile app called **Spendful** from A-Z.
+
+Spendful is a **calm, minimal daily spend awareness app**.  
+It is NOT a budgeting app.
+
+────────────────────────
+CORE PRODUCT PHILOSOPHY
+────────────────────────
+• Calm, non-judgmental tone
+• One daily action only
+• No categories, no budgets, no bank sync
+• Offline-first
+• Ethical paywall
+• iOS + Android support
+
+The entire app revolves around ONE question per day:
+“Did you spend money today?”
+
+────────────────────────
+TECH STACK (MANDATORY)
+────────────────────────
+• Expo (React Native)
+• TypeScript
+• Local SQLite database
+• No authentication
+• No cloud backend
+• Apple IAP + Google Play Billing (stub/mock if needed)
+• Minimal dependencies
+
+────────────────────────
+DATA MODEL (MUST MATCH EXACTLY)
+────────────────────────
+
+Tables:
+
+1) daily_logs
+- id (uuid, primary key)
+- date (TEXT, YYYY-MM-DD, UNIQUE)
+- did_spend (boolean)
+- amount (REAL, nullable)
+- note (TEXT, optional)
+- created_at (epoch ms)
+- updated_at (epoch ms)
+
+2) app_settings (single row, id = 1)
+- daily_reminder_time (TEXT HH:mm)
+- notifications_enabled (boolean)
+- free_history_days (int, default 14)
+- tone (TEXT = "calm")
+- first_launch_at (epoch ms)
+- updated_at (epoch ms)
+
+3) subscriptions (single row, id = 1)
+- plan (free | monthly | yearly | lifetime)
+- is_active (boolean)
+- expires_at (epoch ms, nullable)
+- source (apple | google)
+- updated_at (epoch ms)
+
+────────────────────────
+SCREENS TO BUILD (EXACT)
+────────────────────────
+
+1) ONBOARDING (4 screens)
+• “This is not a budget.”
+• Explain one daily question
+• Explain awareness (not control)
+• Ask for daily reminder time + notification permission
+
+2) DAILY PROMPT (MAIN SCREEN)
+• Header: “Today”
+• Question: “Did you spend money today?”
+• Two equal buttons: No / Yes
+• If No → save immediately
+• If Yes → amount input + optional note
+• Confirmation message: “Thanks. See you tomorrow 🌱”
+
+3) WEEKLY SUMMARY
+• Days logged
+• Spend days vs no-spend days
+• Total spent
+• Neutral dots/bars (no red/green)
+• No comparisons
+
+4) MONTHLY OVERVIEW
+• Calendar grid (dots per day)
+• Spend / no-spend / not logged
+• Monthly snapshot:
+  - Days logged
+  - Spend days
+  - No-spend days
+• Total logged spend
+• Reflection line (non-judgmental)
+
+5) PAYWALL
+• Trigger only when viewing history > 14 days
+• Copy:
+  - “Keep your full picture.”
+  - “Unlock long-term awareness.”
+• Pricing:
+  - $1.99 / month
+  - $9.99 / year (highlight)
+  - $14.99 lifetime
+• Must include “Not now” option
+• Calm, ethical tone
+
+────────────────────────
+DESIGN REQUIREMENTS
+────────────────────────
+• System fonts only
+• White / warm light background
+• Soft spacing
+• No flashy colors
+• No charts with axes
+• No gamification
+• Calm, mindfulness-style UI
+
+────────────────────────
+LOGIC REQUIREMENTS
+────────────────────────
+• One log per day (edit if exists)
+• Store date as local YYYY-MM-DD
+• Allow missed days (no autofill)
+• Offline-first
+• Subscription only gates history depth, not logging
+• Free users see last 14 days only
+
+────────────────────────
+NOTIFICATIONS
+────────────────────────
+• Daily reminder at user-selected time
+• Copy: “Did you spend money today?”
+• No streak pressure
+• Notifications optional and changeable
+
+────────────────────────
+WHAT TO DELIVER
+────────────────────────
+1) Fully working Expo app
+2) SQLite setup + queries
+3) Clean component structure
+4) Clear comments
+5) App ready to run locally
+6) README explaining how to run the app
+
+────────────────────────
+WHAT NOT TO ADD
+────────────────────────
+❌ Categories
+❌ Budgets
+❌ Analytics dashboards
+❌ Social features
+❌ Bank integrations
+❌ Authentication
+❌ Ads
+
+If something is unclear, make a reasonable product decision aligned with a **calm, minimal finance awareness app**.
+
+Build this app completely.
