@@ -1,72 +1,11 @@
-import * as SQLite from "expo-sqlite";
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const DB_NAME = "spendful.db";
-
-let db: SQLite.SQLiteDatabase | null = null;
-
-export async function getDatabase(): Promise<SQLite.SQLiteDatabase> {
-  if (!db) {
-    db = await SQLite.openDatabaseAsync(DB_NAME);
-    await initializeDatabase(db);
-  }
-  return db;
-}
-
-async function initializeDatabase(database: SQLite.SQLiteDatabase): Promise<void> {
-  await database.execAsync(`
-    CREATE TABLE IF NOT EXISTS daily_logs (
-      id TEXT PRIMARY KEY,
-      date TEXT UNIQUE NOT NULL,
-      did_spend INTEGER NOT NULL,
-      amount REAL,
-      note TEXT,
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS app_settings (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      daily_reminder_time TEXT DEFAULT '20:00',
-      notifications_enabled INTEGER DEFAULT 0,
-      free_history_days INTEGER DEFAULT 14,
-      tone TEXT DEFAULT 'calm',
-      first_launch_at INTEGER,
-      onboarding_completed INTEGER DEFAULT 0,
-      updated_at INTEGER NOT NULL
-    );
-
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      plan TEXT DEFAULT 'free',
-      is_active INTEGER DEFAULT 0,
-      expires_at INTEGER,
-      source TEXT,
-      updated_at INTEGER NOT NULL
-    );
-  `);
-
-  const settings = await database.getFirstAsync<{ id: number }>(
-    "SELECT id FROM app_settings WHERE id = 1"
-  );
-  if (!settings) {
-    const now = Date.now();
-    await database.runAsync(
-      "INSERT INTO app_settings (id, updated_at) VALUES (1, ?)",
-      [now]
-    );
-  }
-
-  const subscription = await database.getFirstAsync<{ id: number }>(
-    "SELECT id FROM subscriptions WHERE id = 1"
-  );
-  if (!subscription) {
-    const now = Date.now();
-    await database.runAsync(
-      "INSERT INTO subscriptions (id, updated_at) VALUES (1, ?)",
-      [now]
-    );
-  }
-}
+const STORAGE_KEYS = {
+  DAILY_LOGS: "spendful_daily_logs",
+  APP_SETTINGS: "spendful_app_settings",
+  SUBSCRIPTION: "spendful_subscription",
+};
 
 export interface DailyLog {
   id: string;
@@ -112,29 +51,22 @@ export function getTodayDate(): string {
   return `${year}-${month}-${day}`;
 }
 
+async function getAllLogs(): Promise<DailyLog[]> {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveAllLogs(logs: DailyLog[]): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(logs));
+}
+
 export async function getDailyLog(date: string): Promise<DailyLog | null> {
-  const database = await getDatabase();
-  const row = await database.getFirstAsync<{
-    id: string;
-    date: string;
-    did_spend: number;
-    amount: number | null;
-    note: string | null;
-    created_at: number;
-    updated_at: number;
-  }>("SELECT * FROM daily_logs WHERE date = ?", [date]);
-
-  if (!row) return null;
-
-  return {
-    id: row.id,
-    date: row.date,
-    did_spend: row.did_spend === 1,
-    amount: row.amount,
-    note: row.note,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  };
+  const logs = await getAllLogs();
+  return logs.find((log) => log.date === date) || null;
 }
 
 export async function saveDailyLog(
@@ -143,30 +75,23 @@ export async function saveDailyLog(
   amount: number | null = null,
   note: string | null = null
 ): Promise<DailyLog> {
-  const database = await getDatabase();
+  const logs = await getAllLogs();
   const now = Date.now();
-  const existing = await getDailyLog(date);
+  const existingIndex = logs.findIndex((log) => log.date === date);
 
-  if (existing) {
-    await database.runAsync(
-      "UPDATE daily_logs SET did_spend = ?, amount = ?, note = ?, updated_at = ? WHERE date = ?",
-      [didSpend ? 1 : 0, amount, note, now, date]
-    );
-    return {
-      ...existing,
+  if (existingIndex >= 0) {
+    logs[existingIndex] = {
+      ...logs[existingIndex],
       did_spend: didSpend,
       amount,
       note,
       updated_at: now,
     };
+    await saveAllLogs(logs);
+    return logs[existingIndex];
   } else {
-    const id = generateUUID();
-    await database.runAsync(
-      "INSERT INTO daily_logs (id, date, did_spend, amount, note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [id, date, didSpend ? 1 : 0, amount, note, now, now]
-    );
-    return {
-      id,
+    const newLog: DailyLog = {
+      id: generateUUID(),
       date,
       did_spend: didSpend,
       amount,
@@ -174,6 +99,9 @@ export async function saveDailyLog(
       created_at: now,
       updated_at: now,
     };
+    logs.push(newLog);
+    await saveAllLogs(logs);
+    return newLog;
   }
 }
 
@@ -181,161 +109,80 @@ export async function getLogsForDateRange(
   startDate: string,
   endDate: string
 ): Promise<DailyLog[]> {
-  const database = await getDatabase();
-  const rows = await database.getAllAsync<{
-    id: string;
-    date: string;
-    did_spend: number;
-    amount: number | null;
-    note: string | null;
-    created_at: number;
-    updated_at: number;
-  }>("SELECT * FROM daily_logs WHERE date >= ? AND date <= ? ORDER BY date DESC", [
-    startDate,
-    endDate,
-  ]);
+  const logs = await getAllLogs();
+  return logs
+    .filter((log) => log.date >= startDate && log.date <= endDate)
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
 
-  return rows.map((row) => ({
-    id: row.id,
-    date: row.date,
-    did_spend: row.did_spend === 1,
-    amount: row.amount,
-    note: row.note,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-  }));
+function getDefaultSettings(): AppSettings {
+  return {
+    daily_reminder_time: "20:00",
+    notifications_enabled: false,
+    free_history_days: 14,
+    tone: "calm",
+    first_launch_at: null,
+    onboarding_completed: false,
+    updated_at: Date.now(),
+  };
 }
 
 export async function getAppSettings(): Promise<AppSettings> {
-  const database = await getDatabase();
-  const row = await database.getFirstAsync<{
-    daily_reminder_time: string;
-    notifications_enabled: number;
-    free_history_days: number;
-    tone: string;
-    first_launch_at: number | null;
-    onboarding_completed: number;
-    updated_at: number;
-  }>("SELECT * FROM app_settings WHERE id = 1");
-
-  if (!row) {
-    throw new Error("App settings not found");
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.APP_SETTINGS);
+    if (data) {
+      return { ...getDefaultSettings(), ...JSON.parse(data) };
+    }
+    return getDefaultSettings();
+  } catch {
+    return getDefaultSettings();
   }
-
-  return {
-    daily_reminder_time: row.daily_reminder_time || "20:00",
-    notifications_enabled: row.notifications_enabled === 1,
-    free_history_days: row.free_history_days || 14,
-    tone: row.tone || "calm",
-    first_launch_at: row.first_launch_at,
-    onboarding_completed: row.onboarding_completed === 1,
-    updated_at: row.updated_at,
-  };
 }
 
 export async function updateAppSettings(
   settings: Partial<Omit<AppSettings, "updated_at">>
 ): Promise<void> {
-  const database = await getDatabase();
-  const now = Date.now();
+  const current = await getAppSettings();
+  const updated: AppSettings = {
+    ...current,
+    ...settings,
+    updated_at: Date.now(),
+  };
+  await AsyncStorage.setItem(STORAGE_KEYS.APP_SETTINGS, JSON.stringify(updated));
+}
 
-  const updates: string[] = [];
-  const values: (string | number | null)[] = [];
-
-  if (settings.daily_reminder_time !== undefined) {
-    updates.push("daily_reminder_time = ?");
-    values.push(settings.daily_reminder_time);
-  }
-  if (settings.notifications_enabled !== undefined) {
-    updates.push("notifications_enabled = ?");
-    values.push(settings.notifications_enabled ? 1 : 0);
-  }
-  if (settings.free_history_days !== undefined) {
-    updates.push("free_history_days = ?");
-    values.push(settings.free_history_days);
-  }
-  if (settings.tone !== undefined) {
-    updates.push("tone = ?");
-    values.push(settings.tone);
-  }
-  if (settings.first_launch_at !== undefined) {
-    updates.push("first_launch_at = ?");
-    values.push(settings.first_launch_at);
-  }
-  if (settings.onboarding_completed !== undefined) {
-    updates.push("onboarding_completed = ?");
-    values.push(settings.onboarding_completed ? 1 : 0);
-  }
-
-  updates.push("updated_at = ?");
-  values.push(now);
-
-  if (updates.length > 0) {
-    await database.runAsync(
-      `UPDATE app_settings SET ${updates.join(", ")} WHERE id = 1`,
-      values
-    );
-  }
+function getDefaultSubscription(): Subscription {
+  return {
+    plan: "free",
+    is_active: false,
+    expires_at: null,
+    source: null,
+    updated_at: Date.now(),
+  };
 }
 
 export async function getSubscription(): Promise<Subscription> {
-  const database = await getDatabase();
-  const row = await database.getFirstAsync<{
-    plan: string;
-    is_active: number;
-    expires_at: number | null;
-    source: string | null;
-    updated_at: number;
-  }>("SELECT * FROM subscriptions WHERE id = 1");
-
-  if (!row) {
-    throw new Error("Subscription not found");
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.SUBSCRIPTION);
+    if (data) {
+      return { ...getDefaultSubscription(), ...JSON.parse(data) };
+    }
+    return getDefaultSubscription();
+  } catch {
+    return getDefaultSubscription();
   }
-
-  return {
-    plan: (row.plan || "free") as Subscription["plan"],
-    is_active: row.is_active === 1,
-    expires_at: row.expires_at,
-    source: row.source as Subscription["source"],
-    updated_at: row.updated_at,
-  };
 }
 
 export async function updateSubscription(
   subscription: Partial<Omit<Subscription, "updated_at">>
 ): Promise<void> {
-  const database = await getDatabase();
-  const now = Date.now();
-
-  const updates: string[] = [];
-  const values: (string | number | null)[] = [];
-
-  if (subscription.plan !== undefined) {
-    updates.push("plan = ?");
-    values.push(subscription.plan);
-  }
-  if (subscription.is_active !== undefined) {
-    updates.push("is_active = ?");
-    values.push(subscription.is_active ? 1 : 0);
-  }
-  if (subscription.expires_at !== undefined) {
-    updates.push("expires_at = ?");
-    values.push(subscription.expires_at);
-  }
-  if (subscription.source !== undefined) {
-    updates.push("source = ?");
-    values.push(subscription.source);
-  }
-
-  updates.push("updated_at = ?");
-  values.push(now);
-
-  if (updates.length > 0) {
-    await database.runAsync(
-      `UPDATE subscriptions SET ${updates.join(", ")} WHERE id = 1`,
-      values
-    );
-  }
+  const current = await getSubscription();
+  const updated: Subscription = {
+    ...current,
+    ...subscription,
+    updated_at: Date.now(),
+  };
+  await AsyncStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(updated));
 }
 
 export function getWeekDateRange(): { startDate: string; endDate: string } {
