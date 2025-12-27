@@ -50,33 +50,8 @@ Linear stack navigation from onboarding to daily prompt:
 - **Purpose**: Primarily serves the landing page and handles web deployment; the mobile app operates independently with local SQLite
 
 ### Path Aliases
-- `@/` → `./` (root level)
+- `@/` → `./client/`
 - `@shared/` → `./shared/`
-- `@assets/` → `./assets/`
-
-### File Structure (Expo Standard)
-```
-├── app/                  # Screen components (formerly screens/)
-│   ├── DailyPromptScreen.tsx
-│   ├── MonthlyOverviewScreen.tsx
-│   ├── OnboardingScreen.tsx
-│   ├── PaywallScreen.tsx
-│   ├── SettingsScreen.tsx
-│   └── WeeklySummaryScreen.tsx
-├── assets/               # Static assets (images, fonts)
-├── components/           # Reusable UI components
-├── constants/            # Theme, colors, spacing
-├── hooks/                # Custom React hooks
-├── lib/                  # Utilities (database, query-client)
-├── navigation/           # Navigation configuration
-├── server/               # Express backend
-├── shared/               # Shared types/schemas
-├── ios/                  # Native iOS project
-├── android/              # Native Android project
-├── App.tsx               # Root app component
-├── index.js              # Entry point
-└── app.json              # Expo configuration
-```
 
 ### Component Architecture
 - Reusable themed components: `ThemedView`, `ThemedText`, `Button`, `Card`
