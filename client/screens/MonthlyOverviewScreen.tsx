@@ -22,6 +22,7 @@ import {
   getSubscription,
   getAppSettings,
   canViewDate,
+  isPremium,
   DailyLog,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -70,6 +71,8 @@ export default function MonthlyOverviewScreen() {
   const [monthOffset, setMonthOffset] = useState(0);
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
   const [currentMonth, setCurrentMonth] = useState("");
+  const [hasRestrictedDays, setHasRestrictedDays] = useState(false);
+  const [userIsPremium, setUserIsPremium] = useState(false);
   const [totals, setTotals] = useState({
     daysLogged: 0,
     spendDays: 0,
@@ -85,10 +88,8 @@ export default function MonthlyOverviewScreen() {
       const subscription = await getSubscription();
       const settings = await getAppSettings();
 
-      if (!canViewDate(startDate, subscription, settings.free_history_days)) {
-        navigation.navigate("Paywall");
-        return;
-      }
+      const premium = isPremium(subscription);
+      setUserIsPremium(premium);
 
       const logs = await getLogsForDateRange(startDate, endDate);
       const logsMap = new Map(logs.map((log) => [log.date, log]));
@@ -102,6 +103,7 @@ export default function MonthlyOverviewScreen() {
       const daysInMonth = lastDayOfMonth.getDate();
 
       const days: CalendarDay[] = [];
+      let anyRestricted = false;
 
       for (let i = 0; i < startDayOfWeek; i++) {
         days.push({
@@ -122,10 +124,14 @@ export default function MonthlyOverviewScreen() {
           settings.free_history_days
         );
 
+        if (isRestricted) {
+          anyRestricted = true;
+        }
+
         days.push({
           date: dateStr,
           dayNumber: day,
-          log: logsMap.get(dateStr) || null,
+          log: isRestricted ? null : (logsMap.get(dateStr) || null),
           isToday: dateStr === todayStr,
           isCurrentMonth: true,
           isRestricted,
@@ -144,18 +150,23 @@ export default function MonthlyOverviewScreen() {
         });
       }
 
+      setHasRestrictedDays(anyRestricted);
+
       let daysLogged = 0;
       let spendDays = 0;
       let noSpendDays = 0;
       let totalSpent = 0;
 
       logs.forEach((log) => {
-        daysLogged++;
-        if (log.did_spend) {
-          spendDays++;
-          totalSpent += log.amount || 0;
-        } else {
-          noSpendDays++;
+        const isLogRestricted = !canViewDate(log.date, subscription, settings.free_history_days);
+        if (!isLogRestricted) {
+          daysLogged++;
+          if (log.did_spend) {
+            spendDays++;
+            totalSpent += log.amount || 0;
+          } else {
+            noSpendDays++;
+          }
         }
       });
 
@@ -184,6 +195,10 @@ export default function MonthlyOverviewScreen() {
 
   const getRandomReflection = () => {
     return REFLECTIONS[Math.floor(Math.random() * REFLECTIONS.length)];
+  };
+
+  const handleUpgradePress = () => {
+    navigation.navigate("Paywall");
   };
 
   if (isLoading) {
@@ -266,6 +281,21 @@ export default function MonthlyOverviewScreen() {
               </View>
             ))}
           </View>
+
+          {hasRestrictedDays && !userIsPremium ? (
+            <Pressable onPress={handleUpgradePress} style={[styles.upgradeBanner, { backgroundColor: theme.accentLight }]}>
+              <Feather name="unlock" size={18} color={theme.accent} />
+              <View style={styles.upgradeBannerText}>
+                <ThemedText type="body" style={{ color: theme.accent }}>
+                  See your full history
+                </ThemedText>
+                <ThemedText type="caption" secondary>
+                  Unlock all past months
+                </ThemedText>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.accent} />
+            </Pressable>
+          ) : null}
 
           <View style={styles.statsGrid}>
             <Card elevation={1} style={styles.statCard}>
@@ -393,7 +423,18 @@ const styles = StyleSheet.create({
   calendarGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
+  },
+  upgradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  upgradeBannerText: {
+    flex: 1,
   },
   dayCell: {
     width: `${100 / 7}%`,

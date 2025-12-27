@@ -236,15 +236,47 @@ export function getMonthDateRange(monthOffset: number = 0): {
   };
 }
 
-export function canViewDate(date: string, subscription: Subscription, freeHistoryDays: number): boolean {
+export function isPremium(subscription: Subscription): boolean {
+  if (subscription.plan === "lifetime") {
+    return true;
+  }
+  
   if (subscription.is_active && subscription.plan !== "free") {
+    if (subscription.expires_at === null) {
+      return true;
+    }
+    return subscription.expires_at > Date.now();
+  }
+  
+  return false;
+}
+
+export function canViewDate(date: string, subscription: Subscription, freeHistoryDays: number): boolean {
+  if (isPremium(subscription)) {
     return true;
   }
 
-  const today = new Date();
-  const targetDate = new Date(date);
+  const todayStr = getTodayDate();
+  
+  if (date === todayStr) {
+    return true;
+  }
+  
+  const today = new Date(todayStr + "T00:00:00");
+  const targetDate = new Date(date + "T00:00:00");
   const diffTime = today.getTime() - targetDate.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-  return diffDays <= freeHistoryDays;
+  return diffDays >= 0 && diffDays <= freeHistoryDays;
+}
+
+export function getFreeHistoryCutoffDate(freeHistoryDays: number): string {
+  const today = new Date();
+  const cutoffDate = new Date(today);
+  cutoffDate.setDate(today.getDate() - freeHistoryDays);
+  
+  const year = cutoffDate.getFullYear();
+  const month = String(cutoffDate.getMonth() + 1).padStart(2, "0");
+  const day = String(cutoffDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
