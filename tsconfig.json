@@ -4,11 +4,12 @@
     "strict": true,
     "esModuleInterop": true,
     "paths": {
-      "@/*": ["./client/*"],
-      "@shared/*": ["./shared/*"]
+      "@/*": ["./*"],
+      "@shared/*": ["./shared/*"],
+      "@assets/*": ["./assets/*"]
     },
     "types": ["node"]
   },
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
+  "exclude": ["node_modules", "build", "dist", "**/*.test.ts", "ios", "android"]
 }
