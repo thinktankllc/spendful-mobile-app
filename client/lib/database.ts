@@ -12,10 +12,29 @@ export interface DailyLog {
   date: string;
   did_spend: boolean;
   amount: number | null;
+  category: string | null;
   note: string | null;
   created_at: number;
   updated_at: number;
 }
+
+export const SPENDING_CATEGORIES = [
+  "Uncategorized",
+  "Groceries",
+  "Shopping",
+  "Rent",
+  "Water",
+  "Electricity",
+  "Sewage",
+  "Insurance",
+  "Mortgage",
+  "Transportation",
+  "Dining",
+  "Subscriptions",
+  "Other",
+] as const;
+
+export type SpendingCategory = typeof SPENDING_CATEGORIES[number];
 
 export interface AppSettings {
   daily_reminder_time: string;
@@ -54,7 +73,12 @@ export function getTodayDate(): string {
 async function getAllLogs(): Promise<DailyLog[]> {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+    const logs = JSON.parse(data) as DailyLog[];
+    return logs.map((log) => ({
+      ...log,
+      category: log.category ?? null,
+    }));
   } catch {
     return [];
   }
@@ -73,17 +97,21 @@ export async function saveDailyLog(
   date: string,
   didSpend: boolean,
   amount: number | null = null,
+  category: string | null = null,
   note: string | null = null
 ): Promise<DailyLog> {
   const logs = await getAllLogs();
   const now = Date.now();
   const existingIndex = logs.findIndex((log) => log.date === date);
 
+  const effectiveCategory = didSpend ? (category || "Uncategorized") : null;
+
   if (existingIndex >= 0) {
     logs[existingIndex] = {
       ...logs[existingIndex],
       did_spend: didSpend,
       amount,
+      category: effectiveCategory,
       note,
       updated_at: now,
     };
@@ -95,6 +123,7 @@ export async function saveDailyLog(
       date,
       did_spend: didSpend,
       amount,
+      category: effectiveCategory,
       note,
       created_at: now,
       updated_at: now,
@@ -279,4 +308,41 @@ export function getFreeHistoryCutoffDate(freeHistoryDays: number): string {
   const month = String(cutoffDate.getMonth() + 1).padStart(2, "0");
   const day = String(cutoffDate.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+export interface SpendingStats {
+  totalSpend: number;
+  averageSpendPerSpendDay: number;
+  spendDays: number;
+  noSpendDays: number;
+  topCategories: { category: string; total: number }[];
+}
+
+export function calculateSpendingStats(logs: DailyLog[]): SpendingStats {
+  const spendLogs = logs.filter((log) => log.did_spend);
+  const noSpendLogs = logs.filter((log) => !log.did_spend);
+
+  const totalSpend = spendLogs.reduce((sum, log) => sum + (log.amount || 0), 0);
+  const spendDays = spendLogs.length;
+  const noSpendDays = noSpendLogs.length;
+  const averageSpendPerSpendDay = spendDays > 0 ? totalSpend / spendDays : 0;
+
+  const categoryTotals: Record<string, number> = {};
+  spendLogs.forEach((log) => {
+    const cat = log.category || "Uncategorized";
+    categoryTotals[cat] = (categoryTotals[cat] || 0) + (log.amount || 0);
+  });
+
+  const topCategories = Object.entries(categoryTotals)
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 2);
+
+  return {
+    totalSpend,
+    averageSpendPerSpendDay,
+    spendDays,
+    noSpendDays,
+    topCategories,
+  };
 }

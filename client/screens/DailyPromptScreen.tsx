@@ -8,7 +8,7 @@ import {
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -25,28 +25,37 @@ import {
   saveDailyLog,
   getAppSettings,
   DailyLog,
+  SPENDING_CATEGORIES,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type DailyPromptRouteProp = RouteProp<RootStackParamList, "DailyPrompt">;
 
 type ScreenState = "loading" | "prompt" | "amount" | "confirmed" | "already_logged";
 
 export default function DailyPromptScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<DailyPromptRouteProp>();
   const { theme } = useTheme();
 
+  const targetDate = route.params?.targetDate || getTodayDate();
+  const isEditMode = route.params?.mode === "edit";
+  const isToday = targetDate === getTodayDate();
+
   const [screenState, setScreenState] = useState<ScreenState>("loading");
-  const [todayLog, setTodayLog] = useState<DailyLog | null>(null);
+  const [currentLog, setCurrentLog] = useState<DailyLog | null>(null);
   const [amount, setAmount] = useState("");
+  const [category, setCategory] = useState<string>("Uncategorized");
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [showCategoryPicker, setShowCategoryPicker] = useState(false);
 
-  const loadTodayData = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       const settings = await getAppSettings();
-      if (!settings.onboarding_completed) {
+      if (!settings.onboarding_completed && !isEditMode) {
         navigation.reset({
           index: 0,
           routes: [{ name: "Onboarding" }],
@@ -54,11 +63,22 @@ export default function DailyPromptScreen() {
         return;
       }
 
-      const today = getTodayDate();
-      const log = await getDailyLog(today);
-      setTodayLog(log);
+      const log = await getDailyLog(targetDate);
+      setCurrentLog(log);
 
-      if (log) {
+      if (isEditMode && log) {
+        setAmount(log.amount?.toString() || "");
+        setCategory(log.category || "Uncategorized");
+        setNote(log.note || "");
+        if (log.did_spend) {
+          setScreenState("amount");
+        } else {
+          setScreenState("prompt");
+        }
+      } else if (log) {
+        setAmount(log.amount?.toString() || "");
+        setCategory(log.category || "Uncategorized");
+        setNote(log.note || "");
         setScreenState("already_logged");
       } else {
         setScreenState("prompt");
@@ -66,12 +86,12 @@ export default function DailyPromptScreen() {
     } catch (error) {
       setScreenState("prompt");
     }
-  }, [navigation]);
+  }, [navigation, targetDate, isEditMode]);
 
   useFocusEffect(
     useCallback(() => {
-      loadTodayData();
-    }, [loadTodayData])
+      loadData();
+    }, [loadData])
   );
 
   const triggerHaptic = () => {
@@ -85,9 +105,8 @@ export default function DailyPromptScreen() {
       setIsSaving(true);
       triggerHaptic();
 
-      const today = getTodayDate();
-      const log = await saveDailyLog(today, false, null, null);
-      setTodayLog(log);
+      const log = await saveDailyLog(targetDate, false, null, null, null);
+      setCurrentLog(log);
       setScreenState("confirmed");
     } catch (error) {
       console.error("Error saving log:", error);
@@ -111,9 +130,8 @@ export default function DailyPromptScreen() {
       setIsSaving(true);
       triggerHaptic();
 
-      const today = getTodayDate();
-      const log = await saveDailyLog(today, true, parsedAmount, note.trim() || null);
-      setTodayLog(log);
+      const log = await saveDailyLog(targetDate, true, parsedAmount, category, note.trim() || null);
+      setCurrentLog(log);
       setScreenState("confirmed");
     } catch (error) {
       console.error("Error saving log:", error);
@@ -122,19 +140,124 @@ export default function DailyPromptScreen() {
     }
   };
 
-  const formatDate = () => {
-    const today = new Date();
+  const formatDisplayDate = () => {
+    const date = new Date(targetDate + "T12:00:00");
     const options: Intl.DateTimeFormatOptions = {
       weekday: "long",
       month: "long",
       day: "numeric",
     };
-    return today.toLocaleDateString(undefined, options);
+    return date.toLocaleDateString(undefined, options);
+  };
+
+  const getHeaderTitle = () => {
+    if (isToday) {
+      return "Today";
+    }
+    return isEditMode ? "Edit Entry" : "Log Entry";
   };
 
   const isValidAmount = () => {
     const parsedAmount = parseFloat(amount.replace(/[^0-9.]/g, ""));
     return !isNaN(parsedAmount) && parsedAmount > 0;
+  };
+
+  const handleEditLog = () => {
+    triggerHaptic();
+    if (currentLog?.did_spend) {
+      setScreenState("amount");
+    } else {
+      setScreenState("prompt");
+    }
+  };
+
+  const handleBack = () => {
+    if (isEditMode) {
+      navigation.goBack();
+    } else {
+      setAmount("");
+      setNote("");
+      setCategory("Uncategorized");
+      setScreenState("prompt");
+    }
+  };
+
+  const renderCategorySelector = () => {
+    if (Platform.OS === "web") {
+      return (
+        <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
+          <ThemedText type="small" secondary style={styles.categoryLabel}>
+            Category (optional)
+          </ThemedText>
+          <View style={styles.categoryButtons}>
+            {SPENDING_CATEGORIES.map((cat) => (
+              <Pressable
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  {
+                    backgroundColor: category === cat ? theme.accent : theme.backgroundSecondary,
+                  },
+                ]}
+                onPress={() => setCategory(cat)}
+              >
+                <ThemedText
+                  type="small"
+                  style={{
+                    color: category === cat ? "#fff" : theme.text,
+                  }}
+                >
+                  {cat}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
+        <ThemedText type="small" secondary style={styles.categoryLabel}>
+          Category (optional)
+        </ThemedText>
+        <Pressable
+          style={[styles.categorySelector, { backgroundColor: theme.backgroundSecondary }]}
+          onPress={() => setShowCategoryPicker(!showCategoryPicker)}
+        >
+          <ThemedText type="body">{category}</ThemedText>
+          <Feather
+            name={showCategoryPicker ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={theme.textSecondary}
+          />
+        </Pressable>
+        {showCategoryPicker ? (
+          <View style={styles.categoryList}>
+            {SPENDING_CATEGORIES.map((cat) => (
+              <Pressable
+                key={cat}
+                style={[
+                  styles.categoryOption,
+                  {
+                    backgroundColor: category === cat ? theme.accentLight : "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  setCategory(cat);
+                  setShowCategoryPicker(false);
+                }}
+              >
+                <ThemedText type="body">{cat}</ThemedText>
+                {category === cat ? (
+                  <Feather name="check" size={18} color={theme.accent} />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
+      </View>
+    );
   };
 
   const renderContent = () => {
@@ -150,7 +273,7 @@ export default function DailyPromptScreen() {
         return (
           <View style={styles.centerContent}>
             <ThemedText type="h2" style={styles.question}>
-              Did you spend money today?
+              {isToday ? "Did you spend money today?" : "Did you spend money this day?"}
             </ThemedText>
 
             <View style={styles.buttonRow}>
@@ -206,9 +329,11 @@ export default function DailyPromptScreen() {
                 placeholder="0.00"
                 placeholderTextColor={theme.textMuted}
                 keyboardType="decimal-pad"
-                autoFocus
+                autoFocus={!isEditMode}
               />
             </View>
+
+            {renderCategorySelector()}
 
             <View
               style={[
@@ -233,13 +358,9 @@ export default function DailyPromptScreen() {
                   styles.backButton,
                   { backgroundColor: theme.backgroundDefault },
                 ]}
-                onPress={() => {
-                  setAmount("");
-                  setNote("");
-                  setScreenState("prompt");
-                }}
+                onPress={handleBack}
               >
-                <ThemedText type="body">Back</ThemedText>
+                <ThemedText type="body">{isEditMode ? "Cancel" : "Back"}</ThemedText>
               </Pressable>
 
               <Button
@@ -257,8 +378,13 @@ export default function DailyPromptScreen() {
         return (
           <View style={styles.centerContent}>
             <ThemedText type="h2" style={styles.confirmTitle}>
-              Thanks. See you tomorrow {"\u{1F331}"}
+              {isEditMode ? "Entry updated." : "Thanks. See you tomorrow."}
             </ThemedText>
+            {isEditMode ? (
+              <Button onPress={() => navigation.goBack()} style={{ marginTop: Spacing.xl }}>
+                Go Back
+              </Button>
+            ) : null}
           </View>
         );
 
@@ -275,19 +401,32 @@ export default function DailyPromptScreen() {
             </View>
 
             <ThemedText type="h3" style={styles.confirmTitle}>
-              You've checked in today.
+              {isToday ? "You've checked in today." : "Entry logged."}
             </ThemedText>
 
-            {todayLog?.did_spend ? (
+            {currentLog?.did_spend ? (
               <ThemedText type="body" secondary style={styles.confirmDetail}>
-                Spent ${todayLog.amount?.toFixed(2) || "0.00"}
-                {todayLog.note ? ` - ${todayLog.note}` : ""}
+                Spent ${currentLog.amount?.toFixed(2) || "0.00"}
+                {currentLog.category && currentLog.category !== "Uncategorized"
+                  ? ` on ${currentLog.category}`
+                  : ""}
+                {currentLog.note ? ` - ${currentLog.note}` : ""}
               </ThemedText>
             ) : (
               <ThemedText type="body" secondary style={styles.confirmDetail}>
-                No spending today
+                No spending {isToday ? "today" : "this day"}
               </ThemedText>
             )}
+
+            <Pressable
+              style={[styles.editButton, { backgroundColor: theme.backgroundDefault }]}
+              onPress={handleEditLog}
+            >
+              <Feather name="edit-2" size={16} color={theme.text} />
+              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
+                Edit
+              </ThemedText>
+            </Pressable>
           </View>
         );
     }
@@ -307,43 +446,54 @@ export default function DailyPromptScreen() {
       >
         <View style={styles.header}>
           <View>
-            <ThemedText type="h1">Today</ThemedText>
+            <ThemedText type="h1">{getHeaderTitle()}</ThemedText>
             <ThemedText type="body" secondary>
-              {formatDate()}
+              {formatDisplayDate()}
             </ThemedText>
           </View>
 
-          <Pressable
-            style={[styles.iconButton, { backgroundColor: theme.backgroundDefault }]}
-            onPress={() => navigation.navigate("Settings")}
-          >
-            <Feather name="settings" size={20} color={theme.text} />
-          </Pressable>
+          {isToday ? (
+            <Pressable
+              style={[styles.iconButton, { backgroundColor: theme.backgroundDefault }]}
+              onPress={() => navigation.navigate("Settings")}
+            >
+              <Feather name="settings" size={20} color={theme.text} />
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.iconButton, { backgroundColor: theme.backgroundDefault }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Feather name="x" size={20} color={theme.text} />
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.mainContent}>{renderContent()}</View>
 
-        <View style={styles.navButtons}>
-          <Pressable
-            style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
-            onPress={() => navigation.navigate("WeeklySummary")}
-          >
-            <Feather name="calendar" size={18} color={theme.text} />
-            <ThemedText type="small" style={styles.navButtonText}>
-              This Week
-            </ThemedText>
-          </Pressable>
+        {isToday && screenState !== "amount" ? (
+          <View style={styles.navButtons}>
+            <Pressable
+              style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
+              onPress={() => navigation.navigate("WeeklySummary")}
+            >
+              <Feather name="calendar" size={18} color={theme.text} />
+              <ThemedText type="small" style={styles.navButtonText}>
+                This Week
+              </ThemedText>
+            </Pressable>
 
-          <Pressable
-            style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
-            onPress={() => navigation.navigate("MonthlyOverview", {})}
-          >
-            <Feather name="grid" size={18} color={theme.text} />
-            <ThemedText type="small" style={styles.navButtonText}>
-              Monthly
-            </ThemedText>
-          </Pressable>
-        </View>
+            <Pressable
+              style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
+              onPress={() => navigation.navigate("MonthlyOverview", {})}
+            >
+              <Feather name="grid" size={18} color={theme.text} />
+              <ThemedText type="small" style={styles.navButtonText}>
+                Monthly
+              </ThemedText>
+            </Pressable>
+          </View>
+        ) : null}
       </KeyboardAwareScrollViewCompat>
     </ThemedView>
   );
@@ -423,6 +573,41 @@ const styles = StyleSheet.create({
     minWidth: 100,
     textAlign: "center",
   },
+  categoryContainer: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+  },
+  categoryLabel: {
+    marginBottom: Spacing.sm,
+  },
+  categorySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  categoryList: {
+    marginTop: Spacing.sm,
+  },
+  categoryOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  categoryButtons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: Spacing.sm,
+  },
+  categoryChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+  },
   noteInputContainer: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
@@ -461,6 +646,14 @@ const styles = StyleSheet.create({
   },
   confirmDetail: {
     textAlign: "center",
+  },
+  editButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.full,
+    marginTop: Spacing.xl,
   },
   navButtons: {
     flexDirection: "row",

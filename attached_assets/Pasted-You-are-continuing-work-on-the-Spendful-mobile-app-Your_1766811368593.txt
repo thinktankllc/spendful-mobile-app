@@ -1,0 +1,149 @@
+You are continuing work on the Spendful mobile app.
+
+Your task is to implement THREE specific enhancements.
+Do NOT add any other features.
+Do NOT change the core philosophy of the app.
+
+────────────────────────
+CORE PRINCIPLE (DO NOT VIOLATE)
+────────────────────────
+Spendful is a CALM spending awareness app.
+It is NOT a budgeting app.
+
+No budgets.
+No goals.
+No judgments.
+No alerts about overspending.
+
+────────────────────────
+ENHANCEMENT #1 — EDITING LOGS (MANDATORY)
+────────────────────────
+
+Free users must be able to:
+- Edit TODAY
+- Edit any entry within the last 14 days
+
+Paid users:
+- Can edit ALL historical entries
+
+Rules:
+- Editing must NOT create duplicate daily entries
+- Editing updates the existing daily log row
+- Editing applies to:
+  - did_spend
+  - amount
+  - category (see below)
+  - note
+
+UX requirements:
+- Tapping a logged day opens edit mode
+- Editing uses the SAME UI as daily logging
+- No separate edit screen required
+
+────────────────────────
+ENHANCEMENT #2 — CATEGORY DROPDOWN (LIMITED & OPTIONAL)
+────────────────────────
+
+Add a category selector ONLY when:
+- did_spend = true
+
+This must be:
+- Optional
+- A dropdown / picker
+- Default = “Uncategorized”
+
+Allowed categories (exact list):
+- Groceries
+- Shopping
+- Rent
+- Water
+- Electricity
+- Sewage
+- Insurance
+- Mortgage
+- Transportation
+- Dining
+- Subscriptions
+- Other
+
+Rules:
+- Category is stored per daily log
+- Category must NOT be required
+- Do NOT add category totals on Daily Prompt screen
+
+Database:
+- Add a nullable `category` TEXT column to `daily_logs`
+- Provide a safe migration (do not wipe data)
+
+────────────────────────
+ENHANCEMENT #3 — WEEKLY & MONTHLY STATISTICS (CALM)
+────────────────────────
+
+Enhance Weekly and Monthly views with ADDITIONAL statistics.
+
+Allowed statistics:
+- Total spend
+- Average spend per spend-day
+- Number of spend days
+- Number of no-spend days
+- Top 1–2 categories (by total amount)
+
+NOT allowed:
+- Budgets
+- Percentages vs last period
+- “You spent more than usual”
+- Warnings or advice
+
+UX rules:
+- Statistics must be visually secondary
+- No red/green coloring
+- No arrows up/down
+- No charts with axes
+- Use calm cards or text blocks
+
+────────────────────────
+PAYWALL & ENTITLEMENT RULES (DO NOT BREAK)
+────────────────────────
+
+- Free users:
+  - Can VIEW and EDIT only the last 14 days
+- Paid users:
+  - Full access
+
+If a free user attempts to edit beyond 14 days:
+- Show paywall
+- Do NOT block the entire screen
+
+────────────────────────
+FILES LIKELY INVOLVED
+────────────────────────
+- DailyPrompt.tsx
+- WeeklySummary.tsx
+- MonthlyOverview.tsx
+- dailyLogs.service.ts
+- subscription.service.ts
+- SQLite migration files
+
+Modify ONLY what is required.
+
+────────────────────────
+WHAT NOT TO DO
+────────────────────────
+❌ Do NOT turn this into a budgeting app
+❌ Do NOT add categories everywhere
+❌ Do NOT redesign onboarding
+❌ Do NOT add analytics
+❌ Do NOT remove calm tone
+❌ Do NOT auto-categorize
+
+────────────────────────
+DEFINITION OF DONE
+────────────────────────
+- Users can edit today and last 14 days
+- Category selection works and is optional
+- Weekly & Monthly show richer but calm stats
+- Paywall enforcement still works correctly
+- No crashes, no data loss
+- App remains simple and calm
+
+Complete ONLY these changes.
