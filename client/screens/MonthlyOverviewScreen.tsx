@@ -23,7 +23,9 @@ import {
   getAppSettings,
   canViewDate,
   isPremium,
+  calculateSpendingStats,
   DailyLog,
+  SpendingStats,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -73,23 +75,29 @@ export default function MonthlyOverviewScreen() {
   const [currentMonth, setCurrentMonth] = useState("");
   const [hasRestrictedDays, setHasRestrictedDays] = useState(false);
   const [userIsPremium, setUserIsPremium] = useState(false);
-  const [totals, setTotals] = useState({
-    daysLogged: 0,
+  const [subscription, setSubscription] = useState<any>(null);
+  const [freeHistoryDays, setFreeHistoryDays] = useState(14);
+  const [stats, setStats] = useState<SpendingStats>({
+    totalSpend: 0,
+    averageSpendPerSpendDay: 0,
     spendDays: 0,
     noSpendDays: 0,
-    totalSpent: 0,
+    topCategories: [],
   });
+  const [daysLogged, setDaysLogged] = useState(0);
 
   const loadMonthData = useCallback(async () => {
     try {
       setIsLoading(true);
 
       const { startDate, endDate, year, month } = getMonthDateRange(monthOffset);
-      const subscription = await getSubscription();
+      const sub = await getSubscription();
       const settings = await getAppSettings();
 
-      const premium = isPremium(subscription);
+      const premium = isPremium(sub);
       setUserIsPremium(premium);
+      setSubscription(sub);
+      setFreeHistoryDays(settings.free_history_days);
 
       const logs = await getLogsForDateRange(startDate, endDate);
       const logsMap = new Map(logs.map((log) => [log.date, log]));
@@ -120,7 +128,7 @@ export default function MonthlyOverviewScreen() {
         const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         const isRestricted = !canViewDate(
           dateStr,
-          subscription,
+          sub,
           settings.free_history_days
         );
 
@@ -152,27 +160,15 @@ export default function MonthlyOverviewScreen() {
 
       setHasRestrictedDays(anyRestricted);
 
-      let daysLogged = 0;
-      let spendDays = 0;
-      let noSpendDays = 0;
-      let totalSpent = 0;
+      const accessibleLogs = logs.filter(
+        (log) => canViewDate(log.date, sub, settings.free_history_days)
+      );
 
-      logs.forEach((log) => {
-        const isLogRestricted = !canViewDate(log.date, subscription, settings.free_history_days);
-        if (!isLogRestricted) {
-          daysLogged++;
-          if (log.did_spend) {
-            spendDays++;
-            totalSpent += log.amount || 0;
-          } else {
-            noSpendDays++;
-          }
-        }
-      });
-
+      const calculatedStats = calculateSpendingStats(accessibleLogs);
+      setStats(calculatedStats);
+      setDaysLogged(accessibleLogs.length);
       setCalendarDays(days);
       setCurrentMonth(`${MONTH_NAMES[month - 1]} ${year}`);
-      setTotals({ daysLogged, spendDays, noSpendDays, totalSpent });
     } catch (error) {
       console.error("Error loading month data:", error);
     } finally {
@@ -199,6 +195,16 @@ export default function MonthlyOverviewScreen() {
 
   const handleUpgradePress = () => {
     navigation.navigate("Paywall");
+  };
+
+  const handleDayPress = (day: CalendarDay) => {
+    if (!day.date || !day.isCurrentMonth) return;
+    
+    if (day.isRestricted) {
+      navigation.navigate("Paywall");
+      return;
+    }
+    navigation.navigate("DailyPrompt", { targetDate: day.date, mode: day.log ? "edit" : "log" });
   };
 
   if (isLoading) {
@@ -256,7 +262,12 @@ export default function MonthlyOverviewScreen() {
 
           <View style={styles.calendarGrid}>
             {calendarDays.map((day, index) => (
-              <View key={index} style={styles.dayCell}>
+              <Pressable
+                key={index}
+                style={styles.dayCell}
+                onPress={() => handleDayPress(day)}
+                disabled={!day.isCurrentMonth}
+              >
                 {day.isCurrentMonth ? (
                   <>
                     <ThemedText
@@ -278,7 +289,7 @@ export default function MonthlyOverviewScreen() {
                     />
                   </>
                 ) : null}
-              </View>
+              </Pressable>
             ))}
           </View>
 
@@ -300,7 +311,7 @@ export default function MonthlyOverviewScreen() {
           <View style={styles.statsGrid}>
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h3" style={styles.statValue}>
-                {totals.daysLogged}
+                {daysLogged}
               </ThemedText>
               <ThemedText type="caption" secondary>
                 Logged
@@ -309,7 +320,7 @@ export default function MonthlyOverviewScreen() {
 
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h3" style={styles.statValue}>
-                {totals.spendDays}
+                {stats.spendDays}
               </ThemedText>
               <ThemedText type="caption" secondary>
                 Spend
@@ -318,7 +329,7 @@ export default function MonthlyOverviewScreen() {
 
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h3" style={styles.statValue}>
-                {totals.noSpendDays}
+                {stats.noSpendDays}
               </ThemedText>
               <ThemedText type="caption" secondary>
                 No-spend
@@ -327,13 +338,40 @@ export default function MonthlyOverviewScreen() {
 
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h3" style={styles.statValue}>
-                ${totals.totalSpent.toFixed(0)}
+                ${stats.totalSpend.toFixed(0)}
               </ThemedText>
               <ThemedText type="caption" secondary>
                 Total
               </ThemedText>
             </Card>
           </View>
+
+          {stats.spendDays > 0 ? (
+            <Card elevation={1} style={styles.averageCard}>
+              <ThemedText type="body" secondary>
+                Average per spend day
+              </ThemedText>
+              <ThemedText type="h2" style={styles.averageValue}>
+                ${stats.averageSpendPerSpendDay.toFixed(2)}
+              </ThemedText>
+            </Card>
+          ) : null}
+
+          {stats.topCategories.length > 0 ? (
+            <Card elevation={1} style={styles.categoriesCard}>
+              <ThemedText type="small" secondary style={styles.categoriesTitle}>
+                Top categories
+              </ThemedText>
+              {stats.topCategories.map((cat) => (
+                <View key={cat.category} style={styles.categoryRow}>
+                  <ThemedText type="body">{cat.category}</ThemedText>
+                  <ThemedText type="body" secondary>
+                    ${cat.total.toFixed(2)}
+                  </ThemedText>
+                </View>
+              ))}
+            </Card>
+          ) : null}
 
           <Card elevation={1} style={styles.reflectionCard}>
             <Feather name="sun" size={20} color={theme.accent} />
@@ -469,6 +507,28 @@ const styles = StyleSheet.create({
   },
   statValue: {
     marginBottom: Spacing.xs,
+  },
+  averageCard: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  averageValue: {
+    marginTop: Spacing.sm,
+  },
+  categoriesCard: {
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  categoriesTitle: {
+    marginBottom: Spacing.md,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: Spacing.sm,
   },
   reflectionCard: {
     flexDirection: "row",

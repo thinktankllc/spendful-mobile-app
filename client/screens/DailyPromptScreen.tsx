@@ -24,6 +24,8 @@ import {
   getDailyLog,
   saveDailyLog,
   getAppSettings,
+  getSubscription,
+  canViewDate,
   DailyLog,
   SPENDING_CATEGORIES,
 } from "@/lib/database";
@@ -60,6 +62,14 @@ export default function DailyPromptScreen() {
           index: 0,
           routes: [{ name: "Onboarding" }],
         });
+        return;
+      }
+
+      const subscription = await getSubscription();
+      const canAccess = canViewDate(targetDate, subscription, settings.free_history_days);
+
+      if (!canAccess) {
+        navigation.replace("Paywall");
         return;
       }
 
