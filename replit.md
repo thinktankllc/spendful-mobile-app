@@ -39,9 +39,10 @@ Linear stack navigation from onboarding to daily prompt:
 ### Data Storage
 - **Local Storage**: AsyncStorage for offline-first data persistence (cross-platform: web, iOS, Android)
 - **Data Models**:
-  - `daily_logs`: Stores daily spending entries (date, did_spend, amount, note)
+  - `spend_entries`: Stores individual spending entries (entry_id, date, amount, category, note, timestamp) - supports multiple entries per day
   - `app_settings`: Configuration (reminder time, notifications, free history days, onboarding status)
   - `subscriptions`: Subscription status tracking
+- **Data Migration**: Automatic v1→v2 migration converts legacy daily_logs to new spend_entries format on first load
 - **Note**: Changed from expo-sqlite to AsyncStorage because expo-sqlite doesn't bundle on web platform. AsyncStorage works on all platforms and is sufficient for this app's simple data model.
 
 ### Backend Architecture
