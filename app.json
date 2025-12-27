@@ -35,7 +35,14 @@
           "backgroundColor": "#FAFAF8"
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#5C7C5C"
+        }
+      ]
     ],
     "experiments": {
       "reactCompiler": true
