@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "reac
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -11,15 +11,15 @@ import { Card } from "@/components/Card";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  getLogsForDateRange,
+  getEntriesForDateRange,
   getWeekDateRange,
   getSubscription,
   getAppSettings,
   canViewDate,
   isPremium,
   calculateSpendingStats,
-  DailyLog,
-  Subscription,
+  formatCurrency,
+  SpendEntry,
   SpendingStats,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -30,7 +30,9 @@ interface DaySummary {
   date: string;
   dayName: string;
   dayNumber: number;
-  log: DailyLog | null;
+  entries: SpendEntry[];
+  totalAmount: number;
+  hasSpend: boolean;
   isToday: boolean;
   isRestricted: boolean;
 }
@@ -44,25 +46,33 @@ export default function WeeklySummaryScreen() {
   const [userIsPremium, setUserIsPremium] = useState(false);
   const [stats, setStats] = useState<SpendingStats>({
     totalSpend: 0,
-    averageSpendPerSpendDay: 0,
+    totalEntries: 0,
     spendDays: 0,
-    noSpendDays: 0,
+    averageSpendPerSpendDay: 0,
     topCategories: [],
+    highestSpendDay: null,
+    lowestSpendDay: null,
+    totalDaysInPeriod: 7,
   });
-  const [daysLogged, setDaysLogged] = useState(0);
 
   const loadWeekData = useCallback(async () => {
     try {
       setIsLoading(true);
       const { startDate, endDate } = getWeekDateRange();
-      const logs = await getLogsForDateRange(startDate, endDate);
+      const entries = await getEntriesForDateRange(startDate, endDate);
       const subscription = await getSubscription();
       const settings = await getAppSettings();
 
       const premium = isPremium(subscription);
       setUserIsPremium(premium);
 
-      const logsMap = new Map(logs.map((log) => [log.date, log]));
+      const entriesByDate = new Map<string, SpendEntry[]>();
+      for (const entry of entries) {
+        if (!entriesByDate.has(entry.date)) {
+          entriesByDate.set(entry.date, []);
+        }
+        entriesByDate.get(entry.date)!.push(entry);
+      }
 
       const today = new Date();
       const todayStr = today.toISOString().split("T")[0];
@@ -82,11 +92,16 @@ export default function WeeklySummaryScreen() {
           anyRestricted = true;
         }
 
+        const dayEntries = isRestricted ? [] : (entriesByDate.get(dateStr) || []);
+        const totalAmount = dayEntries.reduce((sum, e) => sum + e.amount, 0);
+
         weekDays.push({
           date: dateStr,
           dayName: dayNames[i],
           dayNumber: date.getDate(),
-          log: isRestricted ? null : (logsMap.get(dateStr) || null),
+          entries: dayEntries,
+          totalAmount,
+          hasSpend: dayEntries.length > 0,
           isToday: dateStr === todayStr,
           isRestricted,
         });
@@ -94,13 +109,12 @@ export default function WeeklySummaryScreen() {
 
       setHasRestrictedDays(anyRestricted);
 
-      const accessibleLogs = logs.filter(
-        (log) => canViewDate(log.date, subscription, settings.free_history_days)
+      const accessibleEntries = entries.filter(
+        (entry) => canViewDate(entry.date, subscription, settings.free_history_days)
       );
 
-      const calculatedStats = calculateSpendingStats(accessibleLogs);
+      const calculatedStats = calculateSpendingStats(accessibleEntries, 7);
       setStats(calculatedStats);
-      setDaysLogged(accessibleLogs.length);
       setWeekData(weekDays);
     } catch (error) {
       console.error("Error loading week data:", error);
@@ -119,10 +133,10 @@ export default function WeeklySummaryScreen() {
     if (day.isRestricted) {
       return theme.notLoggedDot;
     }
-    if (!day.log) {
+    if (!day.hasSpend) {
       return day.isToday ? theme.border : theme.notLoggedDot;
     }
-    return day.log.did_spend ? theme.spendDot : theme.noSpendDot;
+    return theme.spendDot;
   };
 
   const handleUpgradePress = () => {
@@ -134,7 +148,7 @@ export default function WeeklySummaryScreen() {
       navigation.navigate("Paywall");
       return;
     }
-    navigation.navigate("DailyPrompt", { targetDate: day.date, mode: day.log ? "edit" : "log" });
+    navigation.navigate("DailyPrompt", { targetDate: day.date });
   };
 
   if (isLoading) {
@@ -154,7 +168,7 @@ export default function WeeklySummaryScreen() {
       >
         <Animated.View entering={FadeIn.duration(300)}>
           <View style={styles.weekGrid}>
-            {weekData.map((day) => (
+            {weekData.map((day, index) => (
               <Pressable
                 key={day.date}
                 style={[styles.dayColumn, day.isRestricted && styles.restrictedDay]}
@@ -189,6 +203,11 @@ export default function WeeklySummaryScreen() {
                     day.isRestricted && { opacity: 0.4 },
                   ]}
                 />
+                {day.hasSpend && !day.isRestricted ? (
+                  <ThemedText type="caption" muted style={styles.dayAmount}>
+                    {formatCurrency(day.totalAmount)}
+                  </ThemedText>
+                ) : null}
                 {day.isRestricted ? (
                   <Feather name="lock" size={10} color={theme.textMuted} style={styles.lockIcon} />
                 ) : null}
@@ -211,16 +230,23 @@ export default function WeeklySummaryScreen() {
             </Pressable>
           ) : null}
 
-          <View style={styles.statsGrid}>
-            <Card elevation={1} style={styles.statCard}>
-              <ThemedText type="h2" style={styles.statValue}>
-                {daysLogged}
-              </ThemedText>
+          <Animated.View entering={FadeInDown.duration(300).delay(100)}>
+            <Card elevation={1} style={styles.totalCard}>
               <ThemedText type="small" secondary>
-                Days logged
+                Total spent this week
               </ThemedText>
+              <ThemedText type="h1" style={styles.totalValue}>
+                {formatCurrency(stats.totalSpend)}
+              </ThemedText>
+              {stats.totalEntries > 0 ? (
+                <ThemedText type="small" secondary style={styles.subStats}>
+                  {stats.totalEntries} {stats.totalEntries === 1 ? "entry" : "entries"} across {stats.spendDays} {stats.spendDays === 1 ? "day" : "days"}
+                </ThemedText>
+              ) : null}
             </Card>
+          </Animated.View>
 
+          <View style={styles.statsGrid}>
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h2" style={styles.statValue}>
                 {stats.spendDays}
@@ -232,42 +258,43 @@ export default function WeeklySummaryScreen() {
 
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h2" style={styles.statValue}>
-                {stats.noSpendDays}
+                {stats.totalEntries}
               </ThemedText>
               <ThemedText type="small" secondary>
-                No-spend days
+                Entries
+              </ThemedText>
+            </Card>
+
+            <Card elevation={1} style={styles.statCard}>
+              <ThemedText type="body" style={styles.statValue}>
+                {stats.spendDays > 0 ? formatCurrency(stats.averageSpendPerSpendDay) : "-"}
+              </ThemedText>
+              <ThemedText type="small" secondary>
+                Avg/day
               </ThemedText>
             </Card>
           </View>
 
-          <Card elevation={1} style={styles.totalCard}>
-            <ThemedText type="small" secondary>
-              Total spent this week
-            </ThemedText>
-            <ThemedText type="h1" style={styles.totalValue}>
-              ${stats.totalSpend.toFixed(2)}
-            </ThemedText>
-            {stats.spendDays > 0 ? (
-              <ThemedText type="small" secondary style={styles.averageText}>
-                ${stats.averageSpendPerSpendDay.toFixed(2)} avg per spend day
-              </ThemedText>
-            ) : null}
-          </Card>
-
           {stats.topCategories.length > 0 ? (
-            <Card elevation={1} style={styles.categoriesCard}>
-              <ThemedText type="small" secondary style={styles.categoriesTitle}>
-                Top categories
-              </ThemedText>
-              {stats.topCategories.map((cat) => (
-                <View key={cat.category} style={styles.categoryRow}>
-                  <ThemedText type="body">{cat.category}</ThemedText>
-                  <ThemedText type="body" secondary>
-                    ${cat.total.toFixed(2)}
-                  </ThemedText>
-                </View>
-              ))}
-            </Card>
+            <Animated.View entering={FadeInDown.duration(300).delay(200)}>
+              <Card elevation={1} style={styles.categoriesCard}>
+                <ThemedText type="h4" style={styles.categoriesTitle}>
+                  Top Categories
+                </ThemedText>
+                {stats.topCategories.slice(0, 2).map((cat, index) => (
+                  <View key={cat.category} style={styles.categoryRow}>
+                    <View style={styles.categoryInfo}>
+                      <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
+                        <ThemedText type="small" style={{ color: theme.accent }}>
+                          {cat.category}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <ThemedText type="body">{formatCurrency(cat.total)}</ThemedText>
+                  </View>
+                ))}
+              </Card>
+            </Animated.View>
           ) : null}
 
           <View style={styles.legend}>
@@ -283,22 +310,11 @@ export default function WeeklySummaryScreen() {
               <View
                 style={[
                   styles.legendDot,
-                  { backgroundColor: theme.noSpendDot },
-                ]}
-              />
-              <ThemedText type="caption" muted>
-                No-spend day
-              </ThemedText>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[
-                  styles.legendDot,
                   { backgroundColor: theme.notLoggedDot },
                 ]}
               />
               <ThemedText type="caption" muted>
-                Not logged
+                No spending
               </ThemedText>
             </View>
           </View>
@@ -327,11 +343,12 @@ const styles = StyleSheet.create({
   weekGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: Spacing["3xl"],
+    marginBottom: Spacing["2xl"],
   },
   dayColumn: {
     alignItems: "center",
     flex: 1,
+    paddingVertical: Spacing.sm,
   },
   dayName: {
     marginBottom: Spacing.xs,
@@ -343,6 +360,10 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
+  },
+  dayAmount: {
+    marginTop: Spacing.xs,
+    fontSize: 10,
   },
   todayDot: {
     width: 16,
@@ -366,6 +387,18 @@ const styles = StyleSheet.create({
   upgradeBannerText: {
     flex: 1,
   },
+  totalCard: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
+    marginBottom: Spacing.lg,
+  },
+  totalValue: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  subStats: {
+    marginTop: Spacing.xs,
+  },
   statsGrid: {
     flexDirection: "row",
     gap: Spacing.md,
@@ -374,26 +407,15 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: Spacing.xl,
+    paddingVertical: Spacing.lg,
   },
   statValue: {
     marginBottom: Spacing.xs,
   },
-  totalCard: {
-    alignItems: "center",
-    paddingVertical: Spacing["2xl"],
-    marginBottom: Spacing["2xl"],
-  },
-  totalValue: {
-    marginTop: Spacing.sm,
-  },
-  averageText: {
-    marginTop: Spacing.xs,
-  },
   categoriesCard: {
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing["2xl"],
+    marginBottom: Spacing.xl,
   },
   categoriesTitle: {
     marginBottom: Spacing.md,
@@ -404,10 +426,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.sm,
   },
+  categoryInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  categoryBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
   legend: {
     flexDirection: "row",
     justifyContent: "center",
     gap: Spacing.xl,
+    marginTop: Spacing.lg,
   },
   legendItem: {
     flexDirection: "row",

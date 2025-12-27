@@ -1,0 +1,160 @@
+You are continuing work on the Spendful mobile app.
+
+Your task is to implement THREE focused upgrades:
+1) More engaging (but still calm) UX
+2) Support for multiple spend entries per day
+3) Richer Weekly and Monthly statistics
+
+Do NOT add any other features.
+Do NOT turn Spendful into a budgeting app.
+
+────────────────────────
+CORE PRODUCT RULES (DO NOT VIOLATE)
+────────────────────────
+• Spendful is an awareness app, not a budget
+• Calm, reflective tone
+• No guilt, no warnings, no goals
+• No flashy animations or aggressive colors
+• Insight > control
+
+────────────────────────
+UPGRADE #1 — MORE ENGAGING UX (MANDATORY)
+────────────────────────
+
+Improve engagement WITHOUT adding complexity.
+
+Allowed UX improvements:
+- Subtle card layouts
+- Better visual hierarchy
+- Gentle transitions (fade / slide)
+- Icons used sparingly (not decorative)
+- Better empty states
+- Typography contrast (titles vs body)
+
+NOT allowed:
+❌ Gamification
+❌ Streaks
+❌ Confetti / fireworks
+❌ Red vs green spend indicators
+❌ Loud charts
+
+Focus on:
+- Daily Prompt
+- Weekly Summary
+- Monthly Overview
+
+The app should feel thoughtful, not sterile.
+
+────────────────────────
+UPGRADE #2 — MULTIPLE ENTRIES PER DAY (CRITICAL)
+────────────────────────
+
+Users must be able to log MULTIPLE spend entries in a single day.
+
+Rules:
+- A single day can have:
+  - Zero entries
+  - One entry
+  - Multiple entries
+- Each entry includes:
+  - amount (required)
+  - category (optional)
+  - note (optional)
+  - timestamp (local time)
+
+Database changes:
+- Replace the “one log per day” assumption
+- Each spend entry must be its own row
+- Add:
+  - entry_id (UUID)
+  - entry_timestamp (epoch ms)
+- Day grouping must still be based on local date (YYYY-MM-DD)
+
+UX behavior:
+- Daily Prompt shows:
+  - “Add spend” button
+  - List of today’s entries (calm list)
+- Users can:
+  - Add multiple entries
+  - Edit entries within allowed range
+  - Delete individual entries
+
+This must remain fast and low-friction.
+
+────────────────────────
+UPGRADE #3 — RICHER WEEKLY & MONTHLY STATISTICS
+────────────────────────
+
+Enhance insights while staying calm and non-judgmental.
+
+Weekly view should show:
+- Total spend
+- Number of entries
+- Number of spend days
+- Average spend per day (only days with spend)
+- Top 2 categories (by amount)
+
+Monthly view should show:
+- Total spend
+- Average daily spend (spend days only)
+- Highest spend day (date + amount)
+- Lowest spend day (non-zero)
+- Top 3 categories
+- Spend frequency (e.g. “18 of 30 days had spending”)
+
+UX rules:
+- Stats must be secondary to the calendar
+- Use cards or sections, not charts with axes
+- No comparisons to previous periods
+- No “you spent more than” language
+- No trend arrows
+
+────────────────────────
+PAYWALL & ENTITLEMENTS (DO NOT BREAK)
+────────────────────────
+
+Free users:
+- Can add unlimited entries
+- Can view/edit ONLY last 14 days
+
+Paid users:
+- Full access
+
+If free users try to view or edit beyond limit:
+- Show paywall
+- Do NOT block the entire screen
+
+────────────────────────
+FILES LIKELY INVOLVED
+────────────────────────
+- DailyPrompt.tsx
+- WeeklySummary.tsx
+- MonthlyOverview.tsx
+- dailyLogs.service.ts (or equivalent)
+- SQLite migration files
+- UI components (cards, lists)
+
+Modify ONLY what is required.
+
+────────────────────────
+WHAT NOT TO DO
+────────────────────────
+❌ Do NOT add budgets
+❌ Do NOT add charts with axes
+❌ Do NOT add goals or savings targets
+❌ Do NOT add streaks
+❌ Do NOT add notifications based on spending
+❌ Do NOT auto-categorize
+
+────────────────────────
+DEFINITION OF DONE
+────────────────────────
+- UX feels more alive but still calm
+- Users can log multiple entries per day
+- Weekly & Monthly views provide richer insight
+- App remains simple and non-judgmental
+- No data loss
+- No crashes
+- Paywall still works correctly
+
+Complete ONLY these changes.

@@ -1,21 +1,28 @@
-import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STORAGE_KEYS = {
-  DAILY_LOGS: "spendful_daily_logs",
+  SPEND_ENTRIES: "spendful_spend_entries",
   APP_SETTINGS: "spendful_app_settings",
   SUBSCRIPTION: "spendful_subscription",
+  MIGRATED_V2: "spendful_migrated_v2",
 };
 
-export interface DailyLog {
-  id: string;
+export interface SpendEntry {
+  entry_id: string;
   date: string;
-  did_spend: boolean;
-  amount: number | null;
+  amount: number;
   category: string | null;
   note: string | null;
+  timestamp: number;
   created_at: number;
   updated_at: number;
+}
+
+export interface DayData {
+  date: string;
+  entries: SpendEntry[];
+  totalAmount: number;
+  hasSpend: boolean;
 }
 
 export const SPENDING_CATEGORIES = [
@@ -70,78 +77,176 @@ export function getTodayDate(): string {
   return `${year}-${month}-${day}`;
 }
 
-async function getAllLogs(): Promise<DailyLog[]> {
+interface LegacyDailyLog {
+  id: string;
+  date: string;
+  did_spend: boolean;
+  amount: number | null;
+  category: string | null;
+  note: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+async function migrateFromV1(): Promise<void> {
+  const migrated = await AsyncStorage.getItem(STORAGE_KEYS.MIGRATED_V2);
+  if (migrated === "true") return;
+
   try {
-    const data = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
+    const oldData = await AsyncStorage.getItem("spendful_daily_logs");
+    if (oldData) {
+      const oldLogs = JSON.parse(oldData) as LegacyDailyLog[];
+      const newEntries: SpendEntry[] = [];
+
+      for (const log of oldLogs) {
+        if (log.did_spend && log.amount && log.amount > 0) {
+          newEntries.push({
+            entry_id: log.id,
+            date: log.date,
+            amount: log.amount,
+            category: log.category || "Uncategorized",
+            note: log.note,
+            timestamp: log.created_at,
+            created_at: log.created_at,
+            updated_at: log.updated_at,
+          });
+        }
+      }
+
+      if (newEntries.length > 0) {
+        await AsyncStorage.setItem(STORAGE_KEYS.SPEND_ENTRIES, JSON.stringify(newEntries));
+      }
+    }
+    await AsyncStorage.setItem(STORAGE_KEYS.MIGRATED_V2, "true");
+  } catch {
+    await AsyncStorage.setItem(STORAGE_KEYS.MIGRATED_V2, "true");
+  }
+}
+
+async function getAllEntries(): Promise<SpendEntry[]> {
+  await migrateFromV1();
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.SPEND_ENTRIES);
     if (!data) return [];
-    const logs = JSON.parse(data) as DailyLog[];
-    return logs.map((log) => ({
-      ...log,
-      category: log.category ?? null,
-    }));
+    return JSON.parse(data) as SpendEntry[];
   } catch {
     return [];
   }
 }
 
-async function saveAllLogs(logs: DailyLog[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.DAILY_LOGS, JSON.stringify(logs));
+async function saveAllEntries(entries: SpendEntry[]): Promise<void> {
+  await AsyncStorage.setItem(STORAGE_KEYS.SPEND_ENTRIES, JSON.stringify(entries));
 }
 
-export async function getDailyLog(date: string): Promise<DailyLog | null> {
-  const logs = await getAllLogs();
-  return logs.find((log) => log.date === date) || null;
+export async function getEntriesForDate(date: string): Promise<SpendEntry[]> {
+  const entries = await getAllEntries();
+  return entries
+    .filter((e) => e.date === date)
+    .sort((a, b) => b.timestamp - a.timestamp);
 }
 
-export async function saveDailyLog(
+export async function getDayData(date: string): Promise<DayData> {
+  const entries = await getEntriesForDate(date);
+  const totalAmount = entries.reduce((sum, e) => sum + e.amount, 0);
+  return {
+    date,
+    entries,
+    totalAmount,
+    hasSpend: entries.length > 0,
+  };
+}
+
+export async function addSpendEntry(
   date: string,
-  didSpend: boolean,
-  amount: number | null = null,
+  amount: number,
   category: string | null = null,
   note: string | null = null
-): Promise<DailyLog> {
-  const logs = await getAllLogs();
+): Promise<SpendEntry> {
+  const entries = await getAllEntries();
   const now = Date.now();
-  const existingIndex = logs.findIndex((log) => log.date === date);
+  
+  const newEntry: SpendEntry = {
+    entry_id: generateUUID(),
+    date,
+    amount,
+    category: category || "Uncategorized",
+    note,
+    timestamp: now,
+    created_at: now,
+    updated_at: now,
+  };
 
-  const effectiveCategory = didSpend ? (category || "Uncategorized") : null;
-
-  if (existingIndex >= 0) {
-    logs[existingIndex] = {
-      ...logs[existingIndex],
-      did_spend: didSpend,
-      amount,
-      category: effectiveCategory,
-      note,
-      updated_at: now,
-    };
-    await saveAllLogs(logs);
-    return logs[existingIndex];
-  } else {
-    const newLog: DailyLog = {
-      id: generateUUID(),
-      date,
-      did_spend: didSpend,
-      amount,
-      category: effectiveCategory,
-      note,
-      created_at: now,
-      updated_at: now,
-    };
-    logs.push(newLog);
-    await saveAllLogs(logs);
-    return newLog;
-  }
+  entries.push(newEntry);
+  await saveAllEntries(entries);
+  return newEntry;
 }
 
-export async function getLogsForDateRange(
+export async function updateSpendEntry(
+  entryId: string,
+  amount: number,
+  category: string | null = null,
+  note: string | null = null
+): Promise<SpendEntry | null> {
+  const entries = await getAllEntries();
+  const index = entries.findIndex((e) => e.entry_id === entryId);
+  
+  if (index < 0) return null;
+
+  entries[index] = {
+    ...entries[index],
+    amount,
+    category: category || "Uncategorized",
+    note,
+    updated_at: Date.now(),
+  };
+
+  await saveAllEntries(entries);
+  return entries[index];
+}
+
+export async function deleteSpendEntry(entryId: string): Promise<boolean> {
+  const entries = await getAllEntries();
+  const filtered = entries.filter((e) => e.entry_id !== entryId);
+  
+  if (filtered.length === entries.length) return false;
+
+  await saveAllEntries(filtered);
+  return true;
+}
+
+export async function getEntriesForDateRange(
   startDate: string,
   endDate: string
-): Promise<DailyLog[]> {
-  const logs = await getAllLogs();
-  return logs
-    .filter((log) => log.date >= startDate && log.date <= endDate)
-    .sort((a, b) => b.date.localeCompare(a.date));
+): Promise<SpendEntry[]> {
+  const entries = await getAllEntries();
+  return entries
+    .filter((e) => e.date >= startDate && e.date <= endDate)
+    .sort((a, b) => b.timestamp - a.timestamp);
+}
+
+export async function getDayDataForDateRange(
+  startDate: string,
+  endDate: string
+): Promise<Map<string, DayData>> {
+  const entries = await getEntriesForDateRange(startDate, endDate);
+  const dayMap = new Map<string, DayData>();
+
+  for (const entry of entries) {
+    if (!dayMap.has(entry.date)) {
+      dayMap.set(entry.date, {
+        date: entry.date,
+        entries: [],
+        totalAmount: 0,
+        hasSpend: false,
+      });
+    }
+    const day = dayMap.get(entry.date)!;
+    day.entries.push(entry);
+    day.totalAmount += entry.amount;
+    day.hasSpend = true;
+  }
+
+  return dayMap;
 }
 
 function getDefaultSettings(): AppSettings {
@@ -312,37 +417,73 @@ export function getFreeHistoryCutoffDate(freeHistoryDays: number): string {
 
 export interface SpendingStats {
   totalSpend: number;
-  averageSpendPerSpendDay: number;
+  totalEntries: number;
   spendDays: number;
-  noSpendDays: number;
+  averageSpendPerSpendDay: number;
   topCategories: { category: string; total: number }[];
+  highestSpendDay: { date: string; amount: number } | null;
+  lowestSpendDay: { date: string; amount: number } | null;
+  totalDaysInPeriod: number;
 }
 
-export function calculateSpendingStats(logs: DailyLog[]): SpendingStats {
-  const spendLogs = logs.filter((log) => log.did_spend);
-  const noSpendLogs = logs.filter((log) => !log.did_spend);
+export function calculateSpendingStats(
+  entries: SpendEntry[],
+  totalDaysInPeriod: number = 7
+): SpendingStats {
+  if (entries.length === 0) {
+    return {
+      totalSpend: 0,
+      totalEntries: 0,
+      spendDays: 0,
+      averageSpendPerSpendDay: 0,
+      topCategories: [],
+      highestSpendDay: null,
+      lowestSpendDay: null,
+      totalDaysInPeriod,
+    };
+  }
 
-  const totalSpend = spendLogs.reduce((sum, log) => sum + (log.amount || 0), 0);
-  const spendDays = spendLogs.length;
-  const noSpendDays = noSpendLogs.length;
-  const averageSpendPerSpendDay = spendDays > 0 ? totalSpend / spendDays : 0;
-
+  const dayTotals: Record<string, number> = {};
   const categoryTotals: Record<string, number> = {};
-  spendLogs.forEach((log) => {
-    const cat = log.category || "Uncategorized";
-    categoryTotals[cat] = (categoryTotals[cat] || 0) + (log.amount || 0);
-  });
+  let totalSpend = 0;
+
+  for (const entry of entries) {
+    totalSpend += entry.amount;
+    dayTotals[entry.date] = (dayTotals[entry.date] || 0) + entry.amount;
+    const cat = entry.category || "Uncategorized";
+    categoryTotals[cat] = (categoryTotals[cat] || 0) + entry.amount;
+  }
+
+  const spendDays = Object.keys(dayTotals).length;
+  const averageSpendPerSpendDay = spendDays > 0 ? totalSpend / spendDays : 0;
 
   const topCategories = Object.entries(categoryTotals)
     .map(([category, total]) => ({ category, total }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 2);
+    .sort((a, b) => b.total - a.total);
+
+  const dayAmounts = Object.entries(dayTotals).map(([date, amount]) => ({ date, amount }));
+  dayAmounts.sort((a, b) => b.amount - a.amount);
+
+  const highestSpendDay = dayAmounts.length > 0 ? dayAmounts[0] : null;
+  const lowestSpendDay = dayAmounts.length > 0 ? dayAmounts[dayAmounts.length - 1] : null;
 
   return {
     totalSpend,
-    averageSpendPerSpendDay,
+    totalEntries: entries.length,
     spendDays,
-    noSpendDays,
+    averageSpendPerSpendDay,
     topCategories,
+    highestSpendDay,
+    lowestSpendDay,
+    totalDaysInPeriod,
   };
+}
+
+export function formatCurrency(amount: number): string {
+  return `$${amount.toFixed(2)}`;
+}
+
+export function formatDate(dateStr: string): string {
+  const date = new Date(dateStr + "T00:00:00");
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

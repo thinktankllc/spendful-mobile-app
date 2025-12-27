@@ -9,7 +9,7 @@ import {
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import Animated, { FadeIn } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -17,14 +17,16 @@ import { Card } from "@/components/Card";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  getLogsForDateRange,
+  getEntriesForDateRange,
   getMonthDateRange,
   getSubscription,
   getAppSettings,
   canViewDate,
   isPremium,
   calculateSpendingStats,
-  DailyLog,
+  formatCurrency,
+  formatDate,
+  SpendEntry,
   SpendingStats,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -34,7 +36,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 interface CalendarDay {
   date: string | null;
   dayNumber: number | null;
-  log: DailyLog | null;
+  entries: SpendEntry[];
+  totalAmount: number;
+  hasSpend: boolean;
   isToday: boolean;
   isCurrentMonth: boolean;
   isRestricted: boolean;
@@ -75,16 +79,17 @@ export default function MonthlyOverviewScreen() {
   const [currentMonth, setCurrentMonth] = useState("");
   const [hasRestrictedDays, setHasRestrictedDays] = useState(false);
   const [userIsPremium, setUserIsPremium] = useState(false);
-  const [subscription, setSubscription] = useState<any>(null);
-  const [freeHistoryDays, setFreeHistoryDays] = useState(14);
+  const [daysInMonth, setDaysInMonth] = useState(30);
   const [stats, setStats] = useState<SpendingStats>({
     totalSpend: 0,
-    averageSpendPerSpendDay: 0,
+    totalEntries: 0,
     spendDays: 0,
-    noSpendDays: 0,
+    averageSpendPerSpendDay: 0,
     topCategories: [],
+    highestSpendDay: null,
+    lowestSpendDay: null,
+    totalDaysInPeriod: 30,
   });
-  const [daysLogged, setDaysLogged] = useState(0);
 
   const loadMonthData = useCallback(async () => {
     try {
@@ -96,11 +101,16 @@ export default function MonthlyOverviewScreen() {
 
       const premium = isPremium(sub);
       setUserIsPremium(premium);
-      setSubscription(sub);
-      setFreeHistoryDays(settings.free_history_days);
 
-      const logs = await getLogsForDateRange(startDate, endDate);
-      const logsMap = new Map(logs.map((log) => [log.date, log]));
+      const entries = await getEntriesForDateRange(startDate, endDate);
+
+      const entriesByDate = new Map<string, SpendEntry[]>();
+      for (const entry of entries) {
+        if (!entriesByDate.has(entry.date)) {
+          entriesByDate.set(entry.date, []);
+        }
+        entriesByDate.get(entry.date)!.push(entry);
+      }
 
       const today = new Date();
       const todayStr = today.toISOString().split("T")[0];
@@ -108,7 +118,8 @@ export default function MonthlyOverviewScreen() {
       const firstDayOfMonth = new Date(year, month - 1, 1);
       const lastDayOfMonth = new Date(year, month, 0);
       const startDayOfWeek = firstDayOfMonth.getDay();
-      const daysInMonth = lastDayOfMonth.getDate();
+      const totalDaysInMonth = lastDayOfMonth.getDate();
+      setDaysInMonth(totalDaysInMonth);
 
       const days: CalendarDay[] = [];
       let anyRestricted = false;
@@ -117,29 +128,32 @@ export default function MonthlyOverviewScreen() {
         days.push({
           date: null,
           dayNumber: null,
-          log: null,
+          entries: [],
+          totalAmount: 0,
+          hasSpend: false,
           isToday: false,
           isCurrentMonth: false,
           isRestricted: false,
         });
       }
 
-      for (let day = 1; day <= daysInMonth; day++) {
+      for (let day = 1; day <= totalDaysInMonth; day++) {
         const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-        const isRestricted = !canViewDate(
-          dateStr,
-          sub,
-          settings.free_history_days
-        );
+        const isRestricted = !canViewDate(dateStr, sub, settings.free_history_days);
 
         if (isRestricted) {
           anyRestricted = true;
         }
 
+        const dayEntries = isRestricted ? [] : (entriesByDate.get(dateStr) || []);
+        const totalAmount = dayEntries.reduce((sum, e) => sum + e.amount, 0);
+
         days.push({
           date: dateStr,
           dayNumber: day,
-          log: isRestricted ? null : (logsMap.get(dateStr) || null),
+          entries: dayEntries,
+          totalAmount,
+          hasSpend: dayEntries.length > 0,
           isToday: dateStr === todayStr,
           isCurrentMonth: true,
           isRestricted,
@@ -151,7 +165,9 @@ export default function MonthlyOverviewScreen() {
         days.push({
           date: null,
           dayNumber: null,
-          log: null,
+          entries: [],
+          totalAmount: 0,
+          hasSpend: false,
           isToday: false,
           isCurrentMonth: false,
           isRestricted: false,
@@ -160,13 +176,12 @@ export default function MonthlyOverviewScreen() {
 
       setHasRestrictedDays(anyRestricted);
 
-      const accessibleLogs = logs.filter(
-        (log) => canViewDate(log.date, sub, settings.free_history_days)
+      const accessibleEntries = entries.filter(
+        (entry) => canViewDate(entry.date, sub, settings.free_history_days)
       );
 
-      const calculatedStats = calculateSpendingStats(accessibleLogs);
+      const calculatedStats = calculateSpendingStats(accessibleEntries, totalDaysInMonth);
       setStats(calculatedStats);
-      setDaysLogged(accessibleLogs.length);
       setCalendarDays(days);
       setCurrentMonth(`${MONTH_NAMES[month - 1]} ${year}`);
     } catch (error) {
@@ -174,7 +189,7 @@ export default function MonthlyOverviewScreen() {
     } finally {
       setIsLoading(false);
     }
-  }, [monthOffset, navigation]);
+  }, [monthOffset]);
 
   useFocusEffect(
     useCallback(() => {
@@ -185,8 +200,8 @@ export default function MonthlyOverviewScreen() {
   const getDotColor = (day: CalendarDay) => {
     if (!day.isCurrentMonth || !day.date) return "transparent";
     if (day.isRestricted) return theme.notLoggedDot;
-    if (!day.log) return theme.notLoggedDot;
-    return day.log.did_spend ? theme.spendDot : theme.noSpendDot;
+    if (!day.hasSpend) return theme.notLoggedDot;
+    return theme.spendDot;
   };
 
   const getRandomReflection = () => {
@@ -204,7 +219,7 @@ export default function MonthlyOverviewScreen() {
       navigation.navigate("Paywall");
       return;
     }
-    navigation.navigate("DailyPrompt", { targetDate: day.date, mode: day.log ? "edit" : "log" });
+    navigation.navigate("DailyPrompt", { targetDate: day.date });
   };
 
   if (isLoading) {
@@ -228,33 +243,32 @@ export default function MonthlyOverviewScreen() {
               style={[styles.navArrow, { backgroundColor: theme.backgroundDefault }]}
               onPress={() => setMonthOffset((prev) => prev - 1)}
             >
-              <Feather name="chevron-left" size={24} color={theme.text} />
+              <Feather name="chevron-left" size={20} color={theme.text} />
             </Pressable>
-
             <ThemedText type="h3">{currentMonth}</ThemedText>
-
             <Pressable
               style={[
                 styles.navArrow,
                 { backgroundColor: theme.backgroundDefault },
                 monthOffset >= 0 && styles.navArrowDisabled,
               ]}
-              onPress={() => monthOffset < 0 && setMonthOffset((prev) => prev + 1)}
-              disabled={monthOffset >= 0}
+              onPress={() => {
+                if (monthOffset < 0) setMonthOffset((prev) => prev + 1);
+              }}
             >
               <Feather
                 name="chevron-right"
-                size={24}
+                size={20}
                 color={monthOffset >= 0 ? theme.textMuted : theme.text}
               />
             </Pressable>
           </View>
 
           <View style={styles.dayNamesRow}>
-            {DAY_NAMES.map((day, index) => (
+            {DAY_NAMES.map((name, index) => (
               <View key={index} style={styles.dayNameCell}>
                 <ThemedText type="caption" muted>
-                  {day}
+                  {name}
                 </ThemedText>
               </View>
             ))}
@@ -264,16 +278,18 @@ export default function MonthlyOverviewScreen() {
             {calendarDays.map((day, index) => (
               <Pressable
                 key={index}
-                style={styles.dayCell}
+                style={[
+                  styles.calendarCell,
+                  day.isToday && [styles.todayCell, { borderColor: theme.accent }],
+                ]}
                 onPress={() => handleDayPress(day)}
-                disabled={!day.isCurrentMonth}
               >
-                {day.isCurrentMonth ? (
+                {day.isCurrentMonth && day.dayNumber ? (
                   <>
                     <ThemedText
                       type="small"
                       style={[
-                        styles.dayNumber,
+                        styles.calendarDayNumber,
                         day.isToday && { color: theme.accent, fontWeight: "600" },
                         day.isRestricted && { opacity: 0.4 },
                       ]}
@@ -282,11 +298,14 @@ export default function MonthlyOverviewScreen() {
                     </ThemedText>
                     <View
                       style={[
-                        styles.dayDot,
+                        styles.calendarDot,
                         { backgroundColor: getDotColor(day) },
-                        day.isToday && styles.todayDot,
+                        day.isRestricted && { opacity: 0.4 },
                       ]}
                     />
+                    {day.isRestricted ? (
+                      <Feather name="lock" size={8} color={theme.textMuted} style={styles.lockIcon} />
+                    ) : null}
                   </>
                 ) : null}
               </Pressable>
@@ -294,91 +313,143 @@ export default function MonthlyOverviewScreen() {
           </View>
 
           {hasRestrictedDays && !userIsPremium ? (
-            <Pressable onPress={handleUpgradePress} style={[styles.upgradeBanner, { backgroundColor: theme.accentLight }]}>
+            <Pressable
+              onPress={handleUpgradePress}
+              style={[styles.upgradeBanner, { backgroundColor: theme.accentLight }]}
+            >
               <Feather name="unlock" size={18} color={theme.accent} />
               <View style={styles.upgradeBannerText}>
                 <ThemedText type="body" style={{ color: theme.accent }}>
-                  See your full history
+                  See your full month
                 </ThemedText>
                 <ThemedText type="caption" secondary>
-                  Unlock all past months
+                  Unlock unlimited history
                 </ThemedText>
               </View>
               <Feather name="chevron-right" size={20} color={theme.accent} />
             </Pressable>
           ) : null}
 
-          <View style={styles.statsGrid}>
-            <Card elevation={1} style={styles.statCard}>
-              <ThemedText type="h3" style={styles.statValue}>
-                {daysLogged}
+          <Animated.View entering={FadeInDown.duration(300).delay(100)}>
+            <Card elevation={1} style={styles.totalCard}>
+              <ThemedText type="small" secondary>
+                Total spent this month
               </ThemedText>
-              <ThemedText type="caption" secondary>
-                Logged
+              <ThemedText type="h1" style={styles.totalValue}>
+                {formatCurrency(stats.totalSpend)}
               </ThemedText>
+              {stats.totalEntries > 0 ? (
+                <ThemedText type="small" secondary>
+                  {stats.totalEntries} {stats.totalEntries === 1 ? "entry" : "entries"} across {stats.spendDays} {stats.spendDays === 1 ? "day" : "days"}
+                </ThemedText>
+              ) : null}
             </Card>
+          </Animated.View>
 
+          <View style={styles.statsGrid}>
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h3" style={styles.statValue}>
                 {stats.spendDays}
               </ThemedText>
-              <ThemedText type="caption" secondary>
-                Spend
+              <ThemedText type="small" secondary>
+                Spend days
+              </ThemedText>
+            </Card>
+
+            <Card elevation={1} style={styles.statCard}>
+              <ThemedText type="body" style={styles.statValue}>
+                {stats.spendDays > 0 ? formatCurrency(stats.averageSpendPerSpendDay) : "-"}
+              </ThemedText>
+              <ThemedText type="small" secondary>
+                Avg/day
               </ThemedText>
             </Card>
 
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="h3" style={styles.statValue}>
-                {stats.noSpendDays}
+                {daysInMonth - stats.spendDays}
               </ThemedText>
-              <ThemedText type="caption" secondary>
+              <ThemedText type="small" secondary>
                 No-spend
-              </ThemedText>
-            </Card>
-
-            <Card elevation={1} style={styles.statCard}>
-              <ThemedText type="h3" style={styles.statValue}>
-                ${stats.totalSpend.toFixed(0)}
-              </ThemedText>
-              <ThemedText type="caption" secondary>
-                Total
               </ThemedText>
             </Card>
           </View>
 
-          {stats.spendDays > 0 ? (
-            <Card elevation={1} style={styles.averageCard}>
-              <ThemedText type="body" secondary>
-                Average per spend day
-              </ThemedText>
-              <ThemedText type="h2" style={styles.averageValue}>
-                ${stats.averageSpendPerSpendDay.toFixed(2)}
-              </ThemedText>
-            </Card>
+          {stats.highestSpendDay || stats.lowestSpendDay ? (
+            <Animated.View entering={FadeInDown.duration(300).delay(150)}>
+              <View style={styles.highlightRow}>
+                {stats.highestSpendDay ? (
+                  <Card elevation={1} style={styles.highlightCard}>
+                    <Feather name="trending-up" size={16} color={theme.textSecondary} />
+                    <ThemedText type="small" secondary style={styles.highlightLabel}>
+                      Highest day
+                    </ThemedText>
+                    <ThemedText type="body">{formatCurrency(stats.highestSpendDay.amount)}</ThemedText>
+                    <ThemedText type="caption" muted>{formatDate(stats.highestSpendDay.date)}</ThemedText>
+                  </Card>
+                ) : null}
+                {stats.lowestSpendDay && stats.lowestSpendDay.date !== stats.highestSpendDay?.date ? (
+                  <Card elevation={1} style={styles.highlightCard}>
+                    <Feather name="trending-down" size={16} color={theme.textSecondary} />
+                    <ThemedText type="small" secondary style={styles.highlightLabel}>
+                      Lowest day
+                    </ThemedText>
+                    <ThemedText type="body">{formatCurrency(stats.lowestSpendDay.amount)}</ThemedText>
+                    <ThemedText type="caption" muted>{formatDate(stats.lowestSpendDay.date)}</ThemedText>
+                  </Card>
+                ) : null}
+              </View>
+            </Animated.View>
           ) : null}
 
           {stats.topCategories.length > 0 ? (
-            <Card elevation={1} style={styles.categoriesCard}>
-              <ThemedText type="small" secondary style={styles.categoriesTitle}>
-                Top categories
-              </ThemedText>
-              {stats.topCategories.map((cat) => (
-                <View key={cat.category} style={styles.categoryRow}>
-                  <ThemedText type="body">{cat.category}</ThemedText>
-                  <ThemedText type="body" secondary>
-                    ${cat.total.toFixed(2)}
-                  </ThemedText>
-                </View>
-              ))}
-            </Card>
+            <Animated.View entering={FadeInDown.duration(300).delay(200)}>
+              <Card elevation={1} style={styles.categoriesCard}>
+                <ThemedText type="h4" style={styles.categoriesTitle}>
+                  Top Categories
+                </ThemedText>
+                {stats.topCategories.slice(0, 3).map((cat) => (
+                  <View key={cat.category} style={styles.categoryRow}>
+                    <View style={styles.categoryInfo}>
+                      <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
+                        <ThemedText type="small" style={{ color: theme.accent }}>
+                          {cat.category}
+                        </ThemedText>
+                      </View>
+                    </View>
+                    <ThemedText type="body">{formatCurrency(cat.total)}</ThemedText>
+                  </View>
+                ))}
+              </Card>
+            </Animated.View>
           ) : null}
 
-          <Card elevation={1} style={styles.reflectionCard}>
-            <Feather name="sun" size={20} color={theme.accent} />
-            <ThemedText type="body" secondary style={styles.reflectionText}>
-              {getRandomReflection()}
-            </ThemedText>
-          </Card>
+          {stats.spendDays > 0 ? (
+            <Animated.View entering={FadeInDown.duration(300).delay(250)}>
+              <Card elevation={1} style={styles.frequencyCard}>
+                <View style={styles.frequencyContent}>
+                  <Feather name="calendar" size={20} color={theme.accent} />
+                  <View style={styles.frequencyText}>
+                    <ThemedText type="body">
+                      {stats.spendDays} of {daysInMonth} days had spending
+                    </ThemedText>
+                    <ThemedText type="small" secondary>
+                      {Math.round((stats.spendDays / daysInMonth) * 100)}% of the month
+                    </ThemedText>
+                  </View>
+                </View>
+              </Card>
+            </Animated.View>
+          ) : null}
+
+          <Animated.View entering={FadeInDown.duration(300).delay(300)}>
+            <Card elevation={1} style={styles.reflectionCard}>
+              <Feather name="heart" size={18} color={theme.accent} />
+              <ThemedText type="body" secondary style={styles.reflectionText}>
+                {getRandomReflection()}
+              </ThemedText>
+            </Card>
+          </Animated.View>
 
           <View style={styles.legend}>
             <View style={styles.legendItem}>
@@ -386,29 +457,15 @@ export default function MonthlyOverviewScreen() {
                 style={[styles.legendDot, { backgroundColor: theme.spendDot }]}
               />
               <ThemedText type="caption" muted>
-                Spend
+                Spend day
               </ThemedText>
             </View>
             <View style={styles.legendItem}>
               <View
-                style={[
-                  styles.legendDot,
-                  { backgroundColor: theme.noSpendDot },
-                ]}
+                style={[styles.legendDot, { backgroundColor: theme.notLoggedDot }]}
               />
               <ThemedText type="caption" muted>
-                No-spend
-              </ThemedText>
-            </View>
-            <View style={styles.legendItem}>
-              <View
-                style={[
-                  styles.legendDot,
-                  { backgroundColor: theme.notLoggedDot },
-                ]}
-              />
-              <ThemedText type="caption" muted>
-                Not logged
+                No spending
               </ThemedText>
             </View>
           </View>
@@ -436,13 +493,13 @@ const styles = StyleSheet.create({
   },
   monthNav: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: Spacing.xl,
   },
   navArrow: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: BorderRadius.full,
     alignItems: "center",
     justifyContent: "center",
@@ -463,6 +520,28 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     marginBottom: Spacing.xl,
   },
+  calendarCell: {
+    width: "14.28%",
+    aspectRatio: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 2,
+  },
+  todayCell: {
+    borderWidth: 2,
+    borderRadius: BorderRadius.md,
+  },
+  calendarDayNumber: {
+    marginBottom: 2,
+  },
+  calendarDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  lockIcon: {
+    marginTop: 1,
+  },
   upgradeBanner: {
     flexDirection: "row",
     alignItems: "center",
@@ -474,47 +553,41 @@ const styles = StyleSheet.create({
   upgradeBannerText: {
     flex: 1,
   },
-  dayCell: {
-    width: `${100 / 7}%`,
-    aspectRatio: 1,
+  totalCard: {
     alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing["2xl"],
+    marginBottom: Spacing.lg,
   },
-  dayNumber: {
+  totalValue: {
+    marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
-  },
-  dayDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  todayDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
   },
   statsGrid: {
     flexDirection: "row",
-    gap: Spacing.sm,
+    gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
   statCard: {
     flex: 1,
     alignItems: "center",
     paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.sm,
   },
   statValue: {
     marginBottom: Spacing.xs,
   },
-  averageCard: {
-    alignItems: "center",
-    paddingVertical: Spacing.xl,
+  highlightRow: {
+    flexDirection: "row",
+    gap: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  averageValue: {
-    marginTop: Spacing.sm,
+  highlightCard: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  highlightLabel: {
+    marginTop: Spacing.xs,
   },
   categoriesCard: {
     paddingVertical: Spacing.lg,
@@ -530,11 +603,36 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: Spacing.sm,
   },
+  categoryInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  categoryBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  frequencyCard: {
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.lg,
+  },
+  frequencyContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+  },
+  frequencyText: {
+    flex: 1,
+  },
   reflectionCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    marginBottom: Spacing["2xl"],
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.xl,
   },
   reflectionText: {
     flex: 1,

@@ -6,27 +6,35 @@ import {
   Pressable,
   ActivityIndicator,
   Platform,
+  FlatList,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
+import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
   getTodayDate,
-  getDailyLog,
-  saveDailyLog,
+  getDayData,
+  addSpendEntry,
+  updateSpendEntry,
+  deleteSpendEntry,
   getAppSettings,
   getSubscription,
   canViewDate,
-  DailyLog,
+  formatCurrency,
+  SpendEntry,
+  DayData,
   SPENDING_CATEGORIES,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -34,7 +42,7 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type DailyPromptRouteProp = RouteProp<RootStackParamList, "DailyPrompt">;
 
-type ScreenState = "loading" | "prompt" | "amount" | "confirmed" | "already_logged";
+type ScreenState = "loading" | "day_view" | "add_entry" | "edit_entry";
 
 export default function DailyPromptScreen() {
   const insets = useSafeAreaInsets();
@@ -43,11 +51,11 @@ export default function DailyPromptScreen() {
   const { theme } = useTheme();
 
   const targetDate = route.params?.targetDate || getTodayDate();
-  const isEditMode = route.params?.mode === "edit";
   const isToday = targetDate === getTodayDate();
 
   const [screenState, setScreenState] = useState<ScreenState>("loading");
-  const [currentLog, setCurrentLog] = useState<DailyLog | null>(null);
+  const [dayData, setDayData] = useState<DayData | null>(null);
+  const [editingEntry, setEditingEntry] = useState<SpendEntry | null>(null);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<string>("Uncategorized");
   const [note, setNote] = useState("");
@@ -57,7 +65,7 @@ export default function DailyPromptScreen() {
   const loadData = useCallback(async () => {
     try {
       const settings = await getAppSettings();
-      if (!settings.onboarding_completed && !isEditMode) {
+      if (!settings.onboarding_completed) {
         navigation.reset({
           index: 0,
           routes: [{ name: "Onboarding" }],
@@ -73,30 +81,13 @@ export default function DailyPromptScreen() {
         return;
       }
 
-      const log = await getDailyLog(targetDate);
-      setCurrentLog(log);
-
-      if (isEditMode && log) {
-        setAmount(log.amount?.toString() || "");
-        setCategory(log.category || "Uncategorized");
-        setNote(log.note || "");
-        if (log.did_spend) {
-          setScreenState("amount");
-        } else {
-          setScreenState("prompt");
-        }
-      } else if (log) {
-        setAmount(log.amount?.toString() || "");
-        setCategory(log.category || "Uncategorized");
-        setNote(log.note || "");
-        setScreenState("already_logged");
-      } else {
-        setScreenState("prompt");
-      }
+      const data = await getDayData(targetDate);
+      setDayData(data);
+      setScreenState("day_view");
     } catch (error) {
-      setScreenState("prompt");
+      setScreenState("day_view");
     }
-  }, [navigation, targetDate, isEditMode]);
+  }, [navigation, targetDate]);
 
   useFocusEffect(
     useCallback(() => {
@@ -110,27 +101,53 @@ export default function DailyPromptScreen() {
     }
   };
 
-  const handleNoSpend = async () => {
-    try {
-      setIsSaving(true);
-      triggerHaptic();
+  const handleAddEntry = () => {
+    triggerHaptic();
+    setAmount("");
+    setCategory("Uncategorized");
+    setNote("");
+    setEditingEntry(null);
+    setScreenState("add_entry");
+  };
 
-      const log = await saveDailyLog(targetDate, false, null, null, null);
-      setCurrentLog(log);
-      setScreenState("confirmed");
-    } catch (error) {
-      console.error("Error saving log:", error);
-    } finally {
-      setIsSaving(false);
+  const handleEditEntry = (entry: SpendEntry) => {
+    triggerHaptic();
+    setAmount(entry.amount.toString());
+    setCategory(entry.category || "Uncategorized");
+    setNote(entry.note || "");
+    setEditingEntry(entry);
+    setScreenState("edit_entry");
+  };
+
+  const handleDeleteEntry = (entry: SpendEntry) => {
+    triggerHaptic();
+    
+    const doDelete = async () => {
+      try {
+        await deleteSpendEntry(entry.entry_id);
+        await loadData();
+      } catch (error) {
+        console.error("Error deleting entry:", error);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (confirm("Remove this entry?")) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        "Remove Entry",
+        "Are you sure you want to remove this entry?",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Remove", style: "destructive", onPress: doDelete },
+        ]
+      );
     }
   };
 
-  const handleYesSpend = () => {
-    triggerHaptic();
-    setScreenState("amount");
-  };
-
-  const handleSaveSpend = async () => {
+  const handleSaveEntry = async () => {
     const parsedAmount = parseFloat(amount.replace(/[^0-9.]/g, ""));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return;
@@ -140,14 +157,36 @@ export default function DailyPromptScreen() {
       setIsSaving(true);
       triggerHaptic();
 
-      const log = await saveDailyLog(targetDate, true, parsedAmount, category, note.trim() || null);
-      setCurrentLog(log);
-      setScreenState("confirmed");
+      if (editingEntry) {
+        await updateSpendEntry(
+          editingEntry.entry_id,
+          parsedAmount,
+          category,
+          note.trim() || null
+        );
+      } else {
+        await addSpendEntry(targetDate, parsedAmount, category, note.trim() || null);
+      }
+
+      setAmount("");
+      setCategory("Uncategorized");
+      setNote("");
+      setEditingEntry(null);
+      await loadData();
     } catch (error) {
-      console.error("Error saving log:", error);
+      console.error("Error saving entry:", error);
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setAmount("");
+    setCategory("Uncategorized");
+    setNote("");
+    setEditingEntry(null);
+    setShowCategoryPicker(false);
+    setScreenState("day_view");
   };
 
   const formatDisplayDate = () => {
@@ -160,11 +199,12 @@ export default function DailyPromptScreen() {
     return date.toLocaleDateString(undefined, options);
   };
 
-  const getHeaderTitle = () => {
-    if (isToday) {
-      return "Today";
-    }
-    return isEditMode ? "Edit Entry" : "Log Entry";
+  const formatEntryTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+    });
   };
 
   const isValidAmount = () => {
@@ -172,32 +212,12 @@ export default function DailyPromptScreen() {
     return !isNaN(parsedAmount) && parsedAmount > 0;
   };
 
-  const handleEditLog = () => {
-    triggerHaptic();
-    if (currentLog?.did_spend) {
-      setScreenState("amount");
-    } else {
-      setScreenState("prompt");
-    }
-  };
-
-  const handleBack = () => {
-    if (isEditMode) {
-      navigation.goBack();
-    } else {
-      setAmount("");
-      setNote("");
-      setCategory("Uncategorized");
-      setScreenState("prompt");
-    }
-  };
-
   const renderCategorySelector = () => {
     if (Platform.OS === "web") {
       return (
         <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
           <ThemedText type="small" secondary style={styles.categoryLabel}>
-            Category (optional)
+            Category
           </ThemedText>
           <View style={styles.categoryButtons}>
             {SPENDING_CATEGORIES.map((cat) => (
@@ -229,7 +249,7 @@ export default function DailyPromptScreen() {
     return (
       <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
         <ThemedText type="small" secondary style={styles.categoryLabel}>
-          Category (optional)
+          Category
         </ThemedText>
         <Pressable
           style={[styles.categorySelector, { backgroundColor: theme.backgroundSecondary }]}
@@ -243,7 +263,11 @@ export default function DailyPromptScreen() {
           />
         </Pressable>
         {showCategoryPicker ? (
-          <View style={styles.categoryList}>
+          <Animated.View 
+            entering={FadeIn.duration(150)} 
+            exiting={FadeOut.duration(100)}
+            style={styles.categoryList}
+          >
             {SPENDING_CATEGORIES.map((cat) => (
               <Pressable
                 key={cat}
@@ -264,181 +288,201 @@ export default function DailyPromptScreen() {
                 ) : null}
               </Pressable>
             ))}
-          </View>
+          </Animated.View>
         ) : null}
       </View>
     );
   };
 
+  const renderEntryItem = ({ item }: { item: SpendEntry }) => (
+    <Animated.View entering={FadeIn.duration(200)}>
+      <Card style={styles.entryCard}>
+        <Pressable
+          style={styles.entryContent}
+          onPress={() => handleEditEntry(item)}
+        >
+          <View style={styles.entryMain}>
+            <View style={styles.entryHeader}>
+              <ThemedText type="h3">{formatCurrency(item.amount)}</ThemedText>
+              <ThemedText type="small" secondary>
+                {formatEntryTime(item.timestamp)}
+              </ThemedText>
+            </View>
+            <View style={styles.entryDetails}>
+              <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
+                <ThemedText type="small" style={{ color: theme.accent }}>
+                  {item.category || "Uncategorized"}
+                </ThemedText>
+              </View>
+              {item.note ? (
+                <ThemedText type="small" secondary numberOfLines={1} style={styles.entryNote}>
+                  {item.note}
+                </ThemedText>
+              ) : null}
+            </View>
+          </View>
+          <Pressable
+            style={[styles.deleteButton, { backgroundColor: theme.backgroundSecondary }]}
+            onPress={() => handleDeleteEntry(item)}
+            hitSlop={8}
+          >
+            <Feather name="x" size={16} color={theme.textSecondary} />
+          </Pressable>
+        </Pressable>
+      </Card>
+    </Animated.View>
+  );
+
+  const renderDayView = () => {
+    const hasEntries = dayData && dayData.entries.length > 0;
+
+    return (
+      <View style={styles.dayViewContent}>
+        {hasEntries ? (
+          <>
+            <Card style={styles.totalCard}>
+              <ThemedText type="small" secondary>
+                {isToday ? "Today's spending" : "Day total"}
+              </ThemedText>
+              <ThemedText type="h1" style={styles.totalAmount}>
+                {formatCurrency(dayData.totalAmount)}
+              </ThemedText>
+              <ThemedText type="small" secondary>
+                {dayData.entries.length} {dayData.entries.length === 1 ? "entry" : "entries"}
+              </ThemedText>
+            </Card>
+
+            <View style={styles.entriesSection}>
+              <ThemedText type="h4" style={styles.sectionTitle}>
+                Entries
+              </ThemedText>
+              <FlatList
+                data={dayData.entries}
+                keyExtractor={(item) => item.entry_id}
+                renderItem={renderEntryItem}
+                scrollEnabled={false}
+              />
+            </View>
+          </>
+        ) : (
+          <View style={styles.emptyState}>
+            <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundDefault }]}>
+              <Feather name="sun" size={40} color={theme.textMuted} />
+            </View>
+            <ThemedText type="h3" style={styles.emptyTitle}>
+              {isToday ? "No spending yet today" : "No spending recorded"}
+            </ThemedText>
+            <ThemedText type="body" secondary style={styles.emptySubtitle}>
+              {isToday
+                ? "Tap below to log an expense"
+                : "Tap below to add an entry for this day"}
+            </ThemedText>
+          </View>
+        )}
+
+        <Animated.View entering={SlideInDown.duration(300).delay(100)}>
+          <Button onPress={handleAddEntry} style={styles.addButton}>
+            <View style={styles.addButtonContent}>
+              <Feather name="plus" size={20} color="#fff" />
+              <ThemedText type="body" style={{ color: "#fff", marginLeft: Spacing.sm }}>
+                Add Spend
+              </ThemedText>
+            </View>
+          </Button>
+        </Animated.View>
+      </View>
+    );
+  };
+
+  const renderEntryForm = () => (
+    <Animated.View 
+      entering={FadeIn.duration(200)} 
+      exiting={FadeOut.duration(150)}
+      style={styles.formContent}
+    >
+      <ThemedText type="h3" style={styles.formTitle}>
+        {editingEntry ? "Edit entry" : "New entry"}
+      </ThemedText>
+
+      <View
+        style={[
+          styles.amountInputContainer,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
+        <ThemedText type="h2" style={styles.currencySymbol}>
+          $
+        </ThemedText>
+        <TextInput
+          style={[styles.amountInput, { color: theme.text }]}
+          value={amount}
+          onChangeText={setAmount}
+          placeholder="0.00"
+          placeholderTextColor={theme.textMuted}
+          keyboardType="decimal-pad"
+          autoFocus
+        />
+      </View>
+
+      {renderCategorySelector()}
+
+      <View
+        style={[
+          styles.noteInputContainer,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
+        <TextInput
+          style={[styles.noteInput, { color: theme.text }]}
+          value={note}
+          onChangeText={setNote}
+          placeholder="Add a note (optional)"
+          placeholderTextColor={theme.textMuted}
+          multiline
+          numberOfLines={2}
+        />
+      </View>
+
+      <View style={styles.formActions}>
+        <Pressable
+          style={[
+            styles.cancelButton,
+            { backgroundColor: theme.backgroundDefault },
+          ]}
+          onPress={handleCancel}
+        >
+          <ThemedText type="body">Cancel</ThemedText>
+        </Pressable>
+
+        <Button
+          onPress={handleSaveEntry}
+          disabled={isSaving || !isValidAmount()}
+          style={styles.saveButton}
+        >
+          {isSaving ? "Saving..." : editingEntry ? "Update" : "Save"}
+        </Button>
+      </View>
+    </Animated.View>
+  );
+
   const renderContent = () => {
     switch (screenState) {
       case "loading":
         return (
-          <View style={styles.centerContent}>
+          <View style={styles.loadingContent}>
             <ActivityIndicator size="large" color={theme.accent} />
           </View>
         );
 
-      case "prompt":
-        return (
-          <View style={styles.centerContent}>
-            <ThemedText type="h2" style={styles.question}>
-              {isToday ? "Did you spend money today?" : "Did you spend money this day?"}
-            </ThemedText>
+      case "day_view":
+        return renderDayView();
 
-            <View style={styles.buttonRow}>
-              <Pressable
-                style={[
-                  styles.choiceButton,
-                  { backgroundColor: theme.backgroundDefault },
-                ]}
-                onPress={handleNoSpend}
-                disabled={isSaving}
-              >
-                <ThemedText type="h3" style={styles.choiceText}>
-                  No
-                </ThemedText>
-              </Pressable>
+      case "add_entry":
+      case "edit_entry":
+        return renderEntryForm();
 
-              <Pressable
-                style={[
-                  styles.choiceButton,
-                  { backgroundColor: theme.backgroundDefault },
-                ]}
-                onPress={handleYesSpend}
-                disabled={isSaving}
-              >
-                <ThemedText type="h3" style={styles.choiceText}>
-                  Yes
-                </ThemedText>
-              </Pressable>
-            </View>
-          </View>
-        );
-
-      case "amount":
-        return (
-          <View style={styles.amountContent}>
-            <ThemedText type="h3" style={styles.amountTitle}>
-              How much did you spend?
-            </ThemedText>
-
-            <View
-              style={[
-                styles.amountInputContainer,
-                { backgroundColor: theme.backgroundDefault },
-              ]}
-            >
-              <ThemedText type="h2" style={styles.currencySymbol}>
-                $
-              </ThemedText>
-              <TextInput
-                style={[styles.amountInput, { color: theme.text }]}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0.00"
-                placeholderTextColor={theme.textMuted}
-                keyboardType="decimal-pad"
-                autoFocus={!isEditMode}
-              />
-            </View>
-
-            {renderCategorySelector()}
-
-            <View
-              style={[
-                styles.noteInputContainer,
-                { backgroundColor: theme.backgroundDefault },
-              ]}
-            >
-              <TextInput
-                style={[styles.noteInput, { color: theme.text }]}
-                value={note}
-                onChangeText={setNote}
-                placeholder="Add a note (optional)"
-                placeholderTextColor={theme.textMuted}
-                multiline
-                numberOfLines={2}
-              />
-            </View>
-
-            <View style={styles.amountActions}>
-              <Pressable
-                style={[
-                  styles.backButton,
-                  { backgroundColor: theme.backgroundDefault },
-                ]}
-                onPress={handleBack}
-              >
-                <ThemedText type="body">{isEditMode ? "Cancel" : "Back"}</ThemedText>
-              </Pressable>
-
-              <Button
-                onPress={handleSaveSpend}
-                disabled={isSaving || !isValidAmount()}
-                style={styles.saveButton}
-              >
-                {isSaving ? "Saving..." : "Save"}
-              </Button>
-            </View>
-          </View>
-        );
-
-      case "confirmed":
-        return (
-          <View style={styles.centerContent}>
-            <ThemedText type="h2" style={styles.confirmTitle}>
-              {isEditMode ? "Entry updated." : "Thanks. See you tomorrow."}
-            </ThemedText>
-            {isEditMode ? (
-              <Button onPress={() => navigation.goBack()} style={{ marginTop: Spacing.xl }}>
-                Go Back
-              </Button>
-            ) : null}
-          </View>
-        );
-
-      case "already_logged":
-        return (
-          <View style={styles.centerContent}>
-            <View
-              style={[
-                styles.confirmIcon,
-                { backgroundColor: theme.accentLight },
-              ]}
-            >
-              <Feather name="check" size={48} color={theme.accent} />
-            </View>
-
-            <ThemedText type="h3" style={styles.confirmTitle}>
-              {isToday ? "You've checked in today." : "Entry logged."}
-            </ThemedText>
-
-            {currentLog?.did_spend ? (
-              <ThemedText type="body" secondary style={styles.confirmDetail}>
-                Spent ${currentLog.amount?.toFixed(2) || "0.00"}
-                {currentLog.category && currentLog.category !== "Uncategorized"
-                  ? ` on ${currentLog.category}`
-                  : ""}
-                {currentLog.note ? ` - ${currentLog.note}` : ""}
-              </ThemedText>
-            ) : (
-              <ThemedText type="body" secondary style={styles.confirmDetail}>
-                No spending {isToday ? "today" : "this day"}
-              </ThemedText>
-            )}
-
-            <Pressable
-              style={[styles.editButton, { backgroundColor: theme.backgroundDefault }]}
-              onPress={handleEditLog}
-            >
-              <Feather name="edit-2" size={16} color={theme.text} />
-              <ThemedText type="body" style={{ marginLeft: Spacing.sm }}>
-                Edit
-              </ThemedText>
-            </Pressable>
-          </View>
-        );
+      default:
+        return null;
     }
   };
 
@@ -456,7 +500,7 @@ export default function DailyPromptScreen() {
       >
         <View style={styles.header}>
           <View>
-            <ThemedText type="h1">{getHeaderTitle()}</ThemedText>
+            <ThemedText type="h1">{isToday ? "Today" : "Log Entry"}</ThemedText>
             <ThemedText type="body" secondary>
               {formatDisplayDate()}
             </ThemedText>
@@ -481,7 +525,7 @@ export default function DailyPromptScreen() {
 
         <View style={styles.mainContent}>{renderContent()}</View>
 
-        {isToday && screenState !== "amount" ? (
+        {isToday && screenState === "day_view" ? (
           <View style={styles.navButtons}>
             <Pressable
               style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
@@ -534,37 +578,105 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    paddingVertical: Spacing["2xl"],
+  },
+  loadingContent: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dayViewContent: {
+    flex: 1,
+  },
+  totalCard: {
+    alignItems: "center",
+    paddingVertical: Spacing["2xl"],
+    marginBottom: Spacing.xl,
+  },
+  totalAmount: {
+    marginVertical: Spacing.sm,
+  },
+  entriesSection: {
+    flex: 1,
+    marginBottom: Spacing.xl,
+  },
+  sectionTitle: {
+    marginBottom: Spacing.md,
+  },
+  entryCard: {
+    marginBottom: Spacing.md,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  entryContent: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  entryMain: {
+    flex: 1,
+  },
+  entryHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    marginBottom: Spacing.xs,
+  },
+  entryDetails: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+  },
+  categoryBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  entryNote: {
+    flex: 1,
+  },
+  deleteButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.full,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: Spacing.md,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: "center",
     justifyContent: "center",
     paddingVertical: Spacing["4xl"],
   },
-  centerContent: {
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius["2xl"],
     alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.xl,
   },
-  question: {
+  emptyTitle: {
     textAlign: "center",
-    marginBottom: Spacing["4xl"],
+    marginBottom: Spacing.sm,
   },
-  buttonRow: {
+  emptySubtitle: {
+    textAlign: "center",
+  },
+  addButton: {
+    marginTop: Spacing.lg,
+  },
+  addButtonContent: {
     flexDirection: "row",
-    gap: Spacing.lg,
-    width: "100%",
-  },
-  choiceButton: {
-    flex: 1,
-    height: 100,
-    borderRadius: BorderRadius.xl,
     alignItems: "center",
     justifyContent: "center",
   },
-  choiceText: {
-    textAlign: "center",
+  formContent: {
+    flex: 1,
   },
-  amountContent: {
-    width: "100%",
-  },
-  amountTitle: {
+  formTitle: {
     textAlign: "center",
-    marginBottom: Spacing["3xl"],
+    marginBottom: Spacing["2xl"],
   },
   amountInputContainer: {
     flexDirection: "row",
@@ -628,11 +740,11 @@ const styles = StyleSheet.create({
     minHeight: 60,
     textAlignVertical: "top",
   },
-  amountActions: {
+  formActions: {
     flexDirection: "row",
     gap: Spacing.lg,
   },
-  backButton: {
+  cancelButton: {
     flex: 1,
     height: Spacing.buttonHeight,
     borderRadius: BorderRadius.full,
@@ -641,29 +753,6 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     flex: 2,
-  },
-  confirmIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius["2xl"],
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: Spacing["2xl"],
-  },
-  confirmTitle: {
-    textAlign: "center",
-    marginBottom: Spacing.md,
-  },
-  confirmDetail: {
-    textAlign: "center",
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.full,
-    marginTop: Spacing.xl,
   },
   navButtons: {
     flexDirection: "row",
