@@ -12,10 +12,29 @@ export interface DailyLog {
   date: string;
   did_spend: boolean;
   amount: number | null;
+  category: string | null;
   note: string | null;
   created_at: number;
   updated_at: number;
 }
+
+export const SPENDING_CATEGORIES = [
+  "Uncategorized",
+  "Groceries",
+  "Shopping",
+  "Rent",
+  "Water",
+  "Electricity",
+  "Sewage",
+  "Insurance",
+  "Mortgage",
+  "Transportation",
+  "Dining",
+  "Subscriptions",
+  "Other",
+] as const;
+
+export type SpendingCategory = typeof SPENDING_CATEGORIES[number];
 
 export interface AppSettings {
   daily_reminder_time: string;
@@ -54,7 +73,12 @@ export function getTodayDate(): string {
 async function getAllLogs(): Promise<DailyLog[]> {
   try {
     const data = await AsyncStorage.getItem(STORAGE_KEYS.DAILY_LOGS);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+    const logs = JSON.parse(data) as DailyLog[];
+    return logs.map((log) => ({
+      ...log,
+      category: log.category ?? null,
+    }));
   } catch {
     return [];
   }
@@ -73,17 +97,21 @@ export async function saveDailyLog(
   date: string,
   didSpend: boolean,
   amount: number | null = null,
+  category: string | null = null,
   note: string | null = null
 ): Promise<DailyLog> {
   const logs = await getAllLogs();
   const now = Date.now();
   const existingIndex = logs.findIndex((log) => log.date === date);
 
+  const effectiveCategory = didSpend ? (category || "Uncategorized") : null;
+
   if (existingIndex >= 0) {
     logs[existingIndex] = {
       ...logs[existingIndex],
       did_spend: didSpend,
       amount,
+      category: effectiveCategory,
       note,
       updated_at: now,
     };
@@ -95,6 +123,7 @@ export async function saveDailyLog(
       date,
       did_spend: didSpend,
       amount,
+      category: effectiveCategory,
       note,
       created_at: now,
       updated_at: now,
@@ -236,15 +265,84 @@ export function getMonthDateRange(monthOffset: number = 0): {
   };
 }
 
-export function canViewDate(date: string, subscription: Subscription, freeHistoryDays: number): boolean {
+export function isPremium(subscription: Subscription): boolean {
+  if (subscription.plan === "lifetime") {
+    return true;
+  }
+  
   if (subscription.is_active && subscription.plan !== "free") {
+    if (subscription.expires_at === null) {
+      return true;
+    }
+    return subscription.expires_at > Date.now();
+  }
+  
+  return false;
+}
+
+export function canViewDate(date: string, subscription: Subscription, freeHistoryDays: number): boolean {
+  if (isPremium(subscription)) {
     return true;
   }
 
-  const today = new Date();
-  const targetDate = new Date(date);
+  const todayStr = getTodayDate();
+  
+  if (date === todayStr) {
+    return true;
+  }
+  
+  const today = new Date(todayStr + "T00:00:00");
+  const targetDate = new Date(date + "T00:00:00");
   const diffTime = today.getTime() - targetDate.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-  return diffDays <= freeHistoryDays;
+  return diffDays >= 0 && diffDays <= freeHistoryDays;
+}
+
+export function getFreeHistoryCutoffDate(freeHistoryDays: number): string {
+  const today = new Date();
+  const cutoffDate = new Date(today);
+  cutoffDate.setDate(today.getDate() - freeHistoryDays);
+  
+  const year = cutoffDate.getFullYear();
+  const month = String(cutoffDate.getMonth() + 1).padStart(2, "0");
+  const day = String(cutoffDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+export interface SpendingStats {
+  totalSpend: number;
+  averageSpendPerSpendDay: number;
+  spendDays: number;
+  noSpendDays: number;
+  topCategories: { category: string; total: number }[];
+}
+
+export function calculateSpendingStats(logs: DailyLog[]): SpendingStats {
+  const spendLogs = logs.filter((log) => log.did_spend);
+  const noSpendLogs = logs.filter((log) => !log.did_spend);
+
+  const totalSpend = spendLogs.reduce((sum, log) => sum + (log.amount || 0), 0);
+  const spendDays = spendLogs.length;
+  const noSpendDays = noSpendLogs.length;
+  const averageSpendPerSpendDay = spendDays > 0 ? totalSpend / spendDays : 0;
+
+  const categoryTotals: Record<string, number> = {};
+  spendLogs.forEach((log) => {
+    const cat = log.category || "Uncategorized";
+    categoryTotals[cat] = (categoryTotals[cat] || 0) + (log.amount || 0);
+  });
+
+  const topCategories = Object.entries(categoryTotals)
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 2);
+
+  return {
+    totalSpend,
+    averageSpendPerSpendDay,
+    spendDays,
+    noSpendDays,
+    topCategories,
+  };
 }

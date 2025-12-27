@@ -11,7 +11,7 @@ import SettingsScreen from "@/screens/SettingsScreen";
 
 export type RootStackParamList = {
   Onboarding: undefined;
-  DailyPrompt: undefined;
+  DailyPrompt: { targetDate?: string; mode?: "log" | "edit" } | undefined;
   WeeklySummary: undefined;
   MonthlyOverview: { month?: string };
   Paywall: undefined;
