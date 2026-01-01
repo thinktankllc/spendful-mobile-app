@@ -8,6 +8,8 @@ import WeeklySummaryScreen from "@/screens/WeeklySummaryScreen";
 import MonthlyOverviewScreen from "@/screens/MonthlyOverviewScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import { useTheme } from "@/hooks/useTheme";
+import { Colors } from "@/constants/theme";
 
 export type RootStackParamList = {
   Onboarding: undefined;
@@ -23,18 +25,19 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
   const opaqueScreenOptions = useScreenOptions({ transparent: false });
+  const { isDark } = useTheme();
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
       <Stack.Screen
         name="Onboarding"
         component={OnboardingScreen}
-        options={{ headerShown: false, headerTitle: "Daily Prompt" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="DailyPrompt"
         component={DailyPromptScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, headerTitle: "Daily Prompt" }}
       />
       <Stack.Screen
         name="WeeklySummary"
@@ -66,6 +69,11 @@ export default function RootStackNavigator() {
         options={{
           ...opaqueScreenOptions,
           headerTitle: "Settings",
+          headerStyle: {
+            backgroundColor: isDark
+              ? Colors.dark.backgroundTertiary
+              : Colors.light.backgroundDefault,
+          },
         }}
       />
     </Stack.Navigator>
