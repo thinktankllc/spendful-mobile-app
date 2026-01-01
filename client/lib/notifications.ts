@@ -4,7 +4,6 @@ import { getAppSettings } from "./database";
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
     shouldShowBanner: true,
@@ -12,7 +11,10 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export async function scheduleNotification(hour: number, minute: number): Promise<void> {
+export async function scheduleNotification(
+  hour: number,
+  minute: number,
+): Promise<void> {
   if (Platform.OS === "web") return;
 
   await Notifications.cancelAllScheduledNotificationsAsync();
@@ -57,7 +59,7 @@ export async function initializeNotifications(): Promise<void> {
 
   try {
     const settings = await getAppSettings();
-    
+
     if (settings.notifications_enabled) {
       const [hours, minutes] = settings.daily_reminder_time.split(":");
       await scheduleNotification(parseInt(hours, 10), parseInt(minutes, 10));

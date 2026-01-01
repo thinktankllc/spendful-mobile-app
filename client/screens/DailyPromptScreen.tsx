@@ -1,44 +1,49 @@
-import React, { useState, useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Platform,
+  Pressable,
   StyleSheet,
   TextInput,
-  Pressable,
-  ActivityIndicator,
-  Platform,
-  FlatList,
-  Alert,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect, useRoute, RouteProp } from "@react-navigation/native";
+import {
+  RouteProp,
+  useFocusEffect,
+  useNavigation,
+  useRoute,
+} from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  getTodayDate,
-  getDayData,
   addSpendEntry,
-  updateSpendEntry,
-  deleteSpendEntry,
-  getAppSettings,
-  updateAppSettings,
-  getSubscription,
   canViewDate,
-  formatCurrency,
-  SpendEntry,
   DayData,
-  getAllCategories,
-  SUPPORTED_CURRENCIES,
+  deleteSpendEntry,
+  formatCurrency,
   generateRecurringEntriesForToday,
+  getAllCategories,
+  getAppSettings,
+  getDayData,
+  getSubscription,
+  getTodayDate,
+  SpendEntry,
+  SUPPORTED_CURRENCIES,
+  updateAppSettings,
+  updateSpendEntry,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -69,64 +74,71 @@ export default function DailyPromptScreen() {
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
 
-  const loadData = useCallback(async (forceRefresh = false) => {
-    try {
-      const settings = await getAppSettings();
-      
-      if (!settings.onboarding_completed) {
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Onboarding" }],
-        });
-        return;
-      }
-      
-      if (settings.show_onboarding_on_launch) {
-        await updateAppSettings({ show_onboarding_on_launch: false });
-        navigation.reset({
-          index: 0,
-          routes: [{ name: "Onboarding" }],
-        });
-        return;
-      }
+  const loadData = useCallback(
+    async (forceRefresh = false) => {
+      try {
+        const settings = await getAppSettings();
 
-      const effectiveDefaultCurrency = settings.default_currency || "USD";
-      setDefaultCurrency(effectiveDefaultCurrency);
+        if (!settings.onboarding_completed) {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Onboarding" }],
+          });
+          return;
+        }
 
-      const subscription = await getSubscription();
-      const canAccess = canViewDate(targetDate, subscription, settings.free_history_days);
+        if (settings.show_onboarding_on_launch) {
+          await updateAppSettings({ show_onboarding_on_launch: false });
+          navigation.reset({
+            index: 0,
+            routes: [{ name: "Onboarding" }],
+          });
+          return;
+        }
 
-      if (!canAccess) {
-        navigation.replace("Paywall");
-        return;
-      }
+        const effectiveDefaultCurrency = settings.default_currency || "USD";
+        setDefaultCurrency(effectiveDefaultCurrency);
 
-      if (isToday) {
-        await generateRecurringEntriesForToday();
-      }
+        const subscription = await getSubscription();
+        const canAccess = canViewDate(
+          targetDate,
+          subscription,
+          settings.free_history_days,
+        );
 
-      const [data, allCategories] = await Promise.all([
-        getDayData(targetDate),
-        getAllCategories(),
-      ]);
-      
-      setDayData(data);
-      setCategories(allCategories);
-      
-      if (forceRefresh) {
-        setScreenState("day_view");
-      } else {
+        if (!canAccess) {
+          navigation.replace("Paywall");
+          return;
+        }
+
+        if (isToday) {
+          await generateRecurringEntriesForToday();
+        }
+
+        const [data, allCategories] = await Promise.all([
+          getDayData(targetDate),
+          getAllCategories(),
+        ]);
+
+        setDayData(data);
+        setCategories(allCategories);
+
+        if (forceRefresh) {
+          setScreenState("day_view");
+        } else {
+          setScreenState((prev) => (prev === "loading" ? "day_view" : prev));
+        }
+      } catch {
         setScreenState((prev) => (prev === "loading" ? "day_view" : prev));
       }
-    } catch (error) {
-      setScreenState((prev) => (prev === "loading" ? "day_view" : prev));
-    }
-  }, [navigation, targetDate, isToday]);
+    },
+    [navigation, targetDate, isToday],
+  );
 
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+    }, [loadData]),
   );
 
   const triggerHaptic = () => {
@@ -157,7 +169,7 @@ export default function DailyPromptScreen() {
 
   const handleDeleteEntry = (entry: SpendEntry) => {
     triggerHaptic();
-    
+
     const doDelete = async () => {
       try {
         await deleteSpendEntry(entry.entry_id);
@@ -178,7 +190,7 @@ export default function DailyPromptScreen() {
         [
           { text: "Cancel", style: "cancel" },
           { text: "Remove", style: "destructive", onPress: doDelete },
-        ]
+        ],
       );
     }
   };
@@ -199,10 +211,16 @@ export default function DailyPromptScreen() {
           parsedAmount,
           category,
           note.trim() || null,
-          currency
+          currency,
         );
       } else {
-        await addSpendEntry(targetDate, parsedAmount, category, note.trim() || null, currency);
+        await addSpendEntry(
+          targetDate,
+          parsedAmount,
+          category,
+          note.trim() || null,
+          currency,
+        );
       }
 
       setAmount("");
@@ -254,10 +272,15 @@ export default function DailyPromptScreen() {
 
   const renderCategorySelector = () => {
     const categoryList = categories.length > 0 ? categories : ["Uncategorized"];
-    
+
     if (Platform.OS === "web") {
       return (
-        <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
+        <View
+          style={[
+            styles.categoryContainer,
+            { backgroundColor: theme.backgroundDefault },
+          ]}
+        >
           <ThemedText type="small" secondary style={styles.categoryLabel}>
             Category
           </ThemedText>
@@ -268,7 +291,10 @@ export default function DailyPromptScreen() {
                 style={[
                   styles.categoryChip,
                   {
-                    backgroundColor: category === cat ? theme.accent : theme.backgroundSecondary,
+                    backgroundColor:
+                      category === cat
+                        ? theme.accent
+                        : theme.backgroundSecondary,
                   },
                 ]}
                 onPress={() => setCategory(cat)}
@@ -289,12 +315,20 @@ export default function DailyPromptScreen() {
     }
 
     return (
-      <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
+      <View
+        style={[
+          styles.categoryContainer,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
         <ThemedText type="small" secondary style={styles.categoryLabel}>
           Category
         </ThemedText>
         <Pressable
-          style={[styles.categorySelector, { backgroundColor: theme.backgroundSecondary }]}
+          style={[
+            styles.categorySelector,
+            { backgroundColor: theme.backgroundSecondary },
+          ]}
           onPress={() => setShowCategoryPicker(!showCategoryPicker)}
         >
           <ThemedText type="body">{category}</ThemedText>
@@ -305,8 +339,8 @@ export default function DailyPromptScreen() {
           />
         </Pressable>
         {showCategoryPicker ? (
-          <Animated.View 
-            entering={FadeIn.duration(150)} 
+          <Animated.View
+            entering={FadeIn.duration(150)}
             exiting={FadeOut.duration(100)}
             style={styles.categoryList}
           >
@@ -316,7 +350,8 @@ export default function DailyPromptScreen() {
                 style={[
                   styles.categoryOption,
                   {
-                    backgroundColor: category === cat ? theme.accentLight : "transparent",
+                    backgroundColor:
+                      category === cat ? theme.accentLight : "transparent",
                   },
                 ]}
                 onPress={() => {
@@ -338,17 +373,29 @@ export default function DailyPromptScreen() {
 
   const renderCurrencySelector = () => {
     const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.code === currency);
-    
+
     return (
-      <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
+      <View
+        style={[
+          styles.categoryContainer,
+          { backgroundColor: theme.backgroundDefault },
+        ]}
+      >
         <ThemedText type="small" secondary style={styles.categoryLabel}>
           Currency
         </ThemedText>
         <Pressable
-          style={[styles.categorySelector, { backgroundColor: theme.backgroundSecondary }]}
+          style={[
+            styles.categorySelector,
+            { backgroundColor: theme.backgroundSecondary },
+          ]}
           onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
         >
-          <ThemedText type="body">{currencyInfo ? `${currencyInfo.symbol} ${currencyInfo.code}` : currency}</ThemedText>
+          <ThemedText type="body">
+            {currencyInfo
+              ? `${currencyInfo.symbol} ${currencyInfo.code}`
+              : currency}
+          </ThemedText>
           <Feather
             name={showCurrencyPicker ? "chevron-up" : "chevron-down"}
             size={20}
@@ -356,8 +403,8 @@ export default function DailyPromptScreen() {
           />
         </Pressable>
         {showCurrencyPicker ? (
-          <Animated.View 
-            entering={FadeIn.duration(150)} 
+          <Animated.View
+            entering={FadeIn.duration(150)}
             exiting={FadeOut.duration(100)}
             style={styles.categoryList}
           >
@@ -367,7 +414,10 @@ export default function DailyPromptScreen() {
                 style={[
                   styles.categoryOption,
                   {
-                    backgroundColor: currency === curr.code ? theme.accentLight : "transparent",
+                    backgroundColor:
+                      currency === curr.code
+                        ? theme.accentLight
+                        : "transparent",
                   },
                 ]}
                 onPress={() => {
@@ -375,7 +425,9 @@ export default function DailyPromptScreen() {
                   setShowCurrencyPicker(false);
                 }}
               >
-                <ThemedText type="body">{curr.symbol} {curr.code} - {curr.name}</ThemedText>
+                <ThemedText type="body">
+                  {curr.symbol} {curr.code} - {curr.name}
+                </ThemedText>
                 {currency === curr.code ? (
                   <Feather name="check" size={18} color={theme.accent} />
                 ) : null}
@@ -396,26 +448,41 @@ export default function DailyPromptScreen() {
         >
           <View style={styles.entryMain}>
             <View style={styles.entryHeader}>
-              <ThemedText type="h3">{formatCurrency(item.amount, item.currency || defaultCurrency)}</ThemedText>
+              <ThemedText type="h3">
+                {formatCurrency(item.amount, item.currency || defaultCurrency)}
+              </ThemedText>
               <ThemedText type="small" secondary>
                 {formatEntryTime(item.timestamp)}
               </ThemedText>
             </View>
             <View style={styles.entryDetails}>
-              <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
+              <View
+                style={[
+                  styles.categoryBadge,
+                  { backgroundColor: theme.accentLight },
+                ]}
+              >
                 <ThemedText type="small" style={{ color: theme.accent }}>
                   {item.category || "Uncategorized"}
                 </ThemedText>
               </View>
               {item.note ? (
-                <ThemedText type="small" secondary numberOfLines={1} style={styles.entryNote}>
+                <ThemedText
+                  type="small"
+                  secondary
+                  numberOfLines={1}
+                  style={styles.entryNote}
+                >
                   {item.note}
                 </ThemedText>
               ) : null}
             </View>
           </View>
           <Pressable
-            style={[styles.deleteButton, { backgroundColor: theme.backgroundSecondary }]}
+            style={[
+              styles.deleteButton,
+              { backgroundColor: theme.backgroundSecondary },
+            ]}
             onPress={() => handleDeleteEntry(item)}
             hitSlop={8}
           >
@@ -441,7 +508,8 @@ export default function DailyPromptScreen() {
                 {formatCurrency(dayData.totalAmount, defaultCurrency)}
               </ThemedText>
               <ThemedText type="small" secondary>
-                {dayData.entries.length} {dayData.entries.length === 1 ? "entry" : "entries"}
+                {dayData.entries.length}{" "}
+                {dayData.entries.length === 1 ? "entry" : "entries"}
               </ThemedText>
             </Card>
 
@@ -459,7 +527,12 @@ export default function DailyPromptScreen() {
           </>
         ) : (
           <View style={styles.emptyState}>
-            <View style={[styles.emptyIcon, { backgroundColor: theme.backgroundDefault }]}>
+            <View
+              style={[
+                styles.emptyIcon,
+                { backgroundColor: theme.backgroundDefault },
+              ]}
+            >
               <Feather name="sun" size={40} color={theme.textMuted} />
             </View>
             <ThemedText type="h3" style={styles.emptyTitle}>
@@ -473,16 +546,17 @@ export default function DailyPromptScreen() {
           </View>
         )}
 
-        <Animated.View entering={SlideInDown.duration(300).delay(100)}>
-          <Button onPress={handleAddEntry} style={styles.addButton}>
-            <View style={styles.addButtonContent}>
-              <Feather name="plus" size={20} color="#fff" />
-              <ThemedText type="body" style={{ color: "#fff", marginLeft: Spacing.sm }}>
-                Add Spend
-              </ThemedText>
-            </View>
-          </Button>
-        </Animated.View>
+        <Button onPress={handleAddEntry} style={styles.addButton}>
+          <View style={styles.addButtonContent}>
+            <Feather name="plus" size={20} color="#fff" />
+            <ThemedText
+              type="body"
+              style={{ color: "#fff", marginLeft: Spacing.sm }}
+            >
+              Add Spend
+            </ThemedText>
+          </View>
+        </Button>
       </View>
     );
   };
@@ -490,78 +564,78 @@ export default function DailyPromptScreen() {
   const renderEntryForm = () => {
     const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.code === currency);
     const currencySymbol = currencyInfo ? currencyInfo.symbol : "$";
-    
+
     return (
-    <Animated.View 
-      entering={FadeIn.duration(200)} 
-      exiting={FadeOut.duration(150)}
-      style={styles.formContent}
-    >
-      <ThemedText type="h3" style={styles.formTitle}>
-        {editingEntry ? "Edit entry" : "New entry"}
-      </ThemedText>
-
-      <View
-        style={[
-          styles.amountInputContainer,
-          { backgroundColor: theme.backgroundDefault },
-        ]}
+      <Animated.View
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
+        style={styles.formContent}
       >
-        <ThemedText type="h2" style={styles.currencySymbol}>
-          {currencySymbol}
+        <ThemedText type="h3" style={styles.formTitle}>
+          {editingEntry ? "Edit entry" : "New entry"}
         </ThemedText>
-        <TextInput
-          style={[styles.amountInput, { color: theme.text }]}
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="0.00"
-          placeholderTextColor={theme.textMuted}
-          keyboardType="decimal-pad"
-          autoFocus
-        />
-      </View>
 
-      {renderCategorySelector()}
-      {renderCurrencySelector()}
-
-      <View
-        style={[
-          styles.noteInputContainer,
-          { backgroundColor: theme.backgroundDefault },
-        ]}
-      >
-        <TextInput
-          style={[styles.noteInput, { color: theme.text }]}
-          value={note}
-          onChangeText={setNote}
-          placeholder="Add a note (optional)"
-          placeholderTextColor={theme.textMuted}
-          multiline
-          numberOfLines={2}
-        />
-      </View>
-
-      <View style={styles.formActions}>
-        <Pressable
+        <View
           style={[
-            styles.cancelButton,
+            styles.amountInputContainer,
             { backgroundColor: theme.backgroundDefault },
           ]}
-          onPress={handleCancel}
         >
-          <ThemedText type="body">Cancel</ThemedText>
-        </Pressable>
+          <ThemedText type="h2" style={styles.currencySymbol}>
+            {currencySymbol}
+          </ThemedText>
+          <TextInput
+            style={[styles.amountInput, { color: theme.text }]}
+            value={amount}
+            onChangeText={(text) => setAmount(text.replace(/,/g, "."))}
+            placeholder="0.00"
+            placeholderTextColor={theme.textMuted}
+            keyboardType="decimal-pad"
+            autoFocus
+          />
+        </View>
 
-        <Button
-          onPress={handleSaveEntry}
-          disabled={isSaving || !isValidAmount()}
-          style={styles.saveButton}
+        {renderCategorySelector()}
+        {renderCurrencySelector()}
+
+        <View
+          style={[
+            styles.noteInputContainer,
+            { backgroundColor: theme.backgroundDefault },
+          ]}
         >
-          {isSaving ? "Saving..." : editingEntry ? "Update" : "Save"}
-        </Button>
-      </View>
-    </Animated.View>
-  );
+          <TextInput
+            style={[styles.noteInput, { color: theme.text }]}
+            value={note}
+            onChangeText={setNote}
+            placeholder="Add a note (optional)"
+            placeholderTextColor={theme.textMuted}
+            multiline
+            numberOfLines={2}
+          />
+        </View>
+
+        <View style={styles.formActions}>
+          <Pressable
+            style={[
+              styles.cancelButton,
+              { backgroundColor: theme.backgroundDefault },
+            ]}
+            onPress={handleCancel}
+          >
+            <ThemedText type="body">Cancel</ThemedText>
+          </Pressable>
+
+          <Button
+            onPress={handleSaveEntry}
+            disabled={isSaving || !isValidAmount()}
+            style={styles.saveButton}
+          >
+            {isSaving ? "Saving..." : editingEntry ? "Update" : "Save"}
+          </Button>
+        </View>
+      </Animated.View>
+    );
   };
 
   const renderContent = () => {
@@ -592,13 +666,13 @@ export default function DailyPromptScreen() {
         contentContainerStyle={[
           styles.scrollContent,
           {
-            paddingTop: insets.top + Spacing["3xl"],
-            paddingBottom: insets.bottom + Spacing["3xl"],
+            paddingTop: insets.top,
+            paddingBottom: insets.bottom,
           },
         ]}
       >
         <View style={styles.header}>
-          <View>
+          <View style={{ gap: Spacing.sm }}>
             <ThemedText type="h1">{isToday ? "Today" : "Log Entry"}</ThemedText>
             <ThemedText type="body" secondary>
               {formatDisplayDate()}
@@ -607,14 +681,20 @@ export default function DailyPromptScreen() {
 
           {isToday ? (
             <Pressable
-              style={[styles.iconButton, { backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.iconButton,
+                { backgroundColor: theme.backgroundDefault },
+              ]}
               onPress={() => navigation.navigate("Settings")}
             >
               <Feather name="settings" size={20} color={theme.text} />
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.iconButton, { backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.iconButton,
+                { backgroundColor: theme.backgroundDefault },
+              ]}
               onPress={() => navigation.goBack()}
             >
               <Feather name="x" size={20} color={theme.text} />
@@ -627,7 +707,10 @@ export default function DailyPromptScreen() {
         {isToday && screenState === "day_view" ? (
           <View style={styles.navButtons}>
             <Pressable
-              style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.navButton,
+                { backgroundColor: theme.backgroundDefault },
+              ]}
               onPress={() => navigation.navigate("WeeklySummary")}
             >
               <Feather name="calendar" size={18} color={theme.text} />
@@ -637,7 +720,10 @@ export default function DailyPromptScreen() {
             </Pressable>
 
             <Pressable
-              style={[styles.navButton, { backgroundColor: theme.backgroundDefault }]}
+              style={[
+                styles.navButton,
+                { backgroundColor: theme.backgroundDefault },
+              ]}
               onPress={() => navigation.navigate("MonthlyOverview", {})}
             >
               <Feather name="grid" size={18} color={theme.text} />
