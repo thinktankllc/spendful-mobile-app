@@ -8,12 +8,15 @@ import {
   Platform,
   Alert,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -27,6 +30,8 @@ import {
   getCustomCategories,
   addCustomCategory,
   deleteCustomCategory,
+  exportAllData,
+  convertToCSV,
   AppSettings,
   Subscription,
   CustomCategory,
@@ -53,6 +58,7 @@ export default function SettingsScreen() {
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -201,6 +207,67 @@ export default function SettingsScreen() {
     const code = settings?.default_currency || "USD";
     const currency = SUPPORTED_CURRENCIES.find((c) => c.code === code);
     return currency || SUPPORTED_CURRENCIES[0];
+  };
+
+  const handleExport = async (format: "csv" | "json") => {
+    try {
+      setIsExporting(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      const data = await exportAllData();
+      
+      if (data.entries.length === 0) {
+        Alert.alert("No Data", "There are no spending entries to export.");
+        setIsExporting(false);
+        return;
+      }
+
+      const timestamp = new Date().toISOString().split("T")[0];
+      const filename = `spendful-export-${timestamp}.${format}`;
+      
+      let content: string;
+      let mimeType: string;
+      
+      if (format === "csv") {
+        content = convertToCSV(data.entries);
+        mimeType = "text/csv";
+      } else {
+        content = JSON.stringify(data, null, 2);
+        mimeType = "application/json";
+      }
+
+      if (Platform.OS === "web") {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } else {
+        const fileUri = (FileSystem.cacheDirectory || "") + filename;
+        await FileSystem.writeAsStringAsync(fileUri, content, {
+          encoding: FileSystem.EncodingType.UTF8,
+        });
+        
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType,
+            dialogTitle: `Export Spendful Data (${format.toUpperCase()})`,
+          });
+        } else {
+          Alert.alert("Export Complete", `Your data has been saved to ${filename}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error exporting data:", error);
+      Alert.alert("Export Failed", "Unable to export your data. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -444,6 +511,62 @@ export default function SettingsScreen() {
                 <Feather name="chevron-right" size={20} color={theme.textMuted} />
               </View>
             </View>
+          </Card>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="small" secondary style={styles.sectionTitle}>
+            Data
+          </ThemedText>
+
+          <Card elevation={1} style={styles.settingsCard}>
+            <Pressable
+              style={styles.settingRow}
+              onPress={() => handleExport("csv")}
+              disabled={isExporting}
+            >
+              <View style={styles.settingInfo}>
+                <Feather name="file-text" size={20} color={theme.text} />
+                <View>
+                  <ThemedText type="body" style={styles.settingLabel}>
+                    Export as CSV
+                  </ThemedText>
+                  <ThemedText type="caption" muted>
+                    Spreadsheet format
+                  </ThemedText>
+                </View>
+              </View>
+              {isExporting ? (
+                <ActivityIndicator size="small" color={theme.accent} />
+              ) : (
+                <Feather name="download" size={20} color={theme.textMuted} />
+              )}
+            </Pressable>
+
+            <View style={styles.divider} />
+
+            <Pressable
+              style={styles.settingRow}
+              onPress={() => handleExport("json")}
+              disabled={isExporting}
+            >
+              <View style={styles.settingInfo}>
+                <Feather name="code" size={20} color={theme.text} />
+                <View>
+                  <ThemedText type="body" style={styles.settingLabel}>
+                    Export as JSON
+                  </ThemedText>
+                  <ThemedText type="caption" muted>
+                    Full data backup
+                  </ThemedText>
+                </View>
+              </View>
+              {isExporting ? (
+                <ActivityIndicator size="small" color={theme.accent} />
+              ) : (
+                <Feather name="download" size={20} color={theme.textMuted} />
+              )}
+            </Pressable>
           </Card>
         </View>
 

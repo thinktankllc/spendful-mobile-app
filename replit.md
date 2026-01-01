@@ -13,6 +13,7 @@ The app follows an ethical, non-manipulative design philosophy with a calm, non-
 - Multi-currency support (12 currencies: USD, EUR, GBP, JPY, CNY, KRW, INR, VND, BRL, CAD, AUD, MXN)
 - Custom category management (add/remove personal categories)
 - Recurring entries (weekly/biweekly/monthly auto-generation)
+- Data export (CSV for spreadsheets, JSON for full backup) via share sheet
 - Freemium model with 30-day free history access
 - Premium plans: $0.99/month, $8.99/year, or $14.99 lifetime
 - Cross-platform support (iOS, Android, Web)
@@ -72,6 +73,8 @@ Linear stack navigation from onboarding to daily prompt:
 ### Core Mobile Dependencies
 - **@react-native-async-storage/async-storage**: Local storage for offline-first data persistence (cross-platform)
 - **expo-notifications**: Daily reminder notifications
+- **expo-sharing**: Native share sheet for data export
+- **expo-file-system**: File operations for export functionality
 - **@react-navigation/native-stack**: Stack-based navigation
 - **react-native-reanimated**: Animation library
 - **react-native-gesture-handler**: Touch gesture handling

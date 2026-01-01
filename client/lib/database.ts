@@ -735,3 +735,51 @@ export async function generateRecurringEntriesForToday(): Promise<number> {
   
   return generated;
 }
+
+export interface ExportData {
+  exportedAt: string;
+  version: string;
+  entries: SpendEntry[];
+  settings: AppSettings;
+  customCategories: CustomCategory[];
+}
+
+export async function exportAllData(): Promise<ExportData> {
+  const [entries, settings, customCategories] = await Promise.all([
+    getAllEntries(),
+    getAppSettings(),
+    getCustomCategories(),
+  ]);
+  
+  return {
+    exportedAt: new Date().toISOString(),
+    version: "1.0.0",
+    entries: entries.sort((a, b) => b.date.localeCompare(a.date)),
+    settings,
+    customCategories,
+  };
+}
+
+export function convertToCSV(entries: SpendEntry[]): string {
+  const headers = ["Date", "Amount", "Currency", "Category", "Note", "Created At"];
+  
+  const escapeCSVField = (value: string): string => {
+    return value.replace(/"/g, '""');
+  };
+  
+  const rows = entries.map((e) => [
+    escapeCSVField(e.date),
+    escapeCSVField(e.amount.toString()),
+    escapeCSVField(e.currency || "USD"),
+    escapeCSVField(e.category || "Uncategorized"),
+    escapeCSVField(e.note || ""),
+    escapeCSVField(new Date(e.created_at).toISOString()),
+  ]);
+  
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+  ].join("\n");
+  
+  return csvContent;
+}
