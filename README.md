@@ -86,9 +86,18 @@ Linear stack navigation from onboarding to daily prompt:
 - **drizzle-orm**: TypeScript ORM for database operations
 - **http-proxy-middleware**: Development proxy for Expo bundler
 
-### In-App Purchases (Planned)
-- Apple IAP and Google Play Billing integration planned for premium features
-- Currently stubbed/mocked in PaywallScreen
+### In-App Purchases
+- **Status**: Simulated/mocked for development; requires native build for production
+- **PaywallScreen**: Contains mock subscription logic with IAP integration notes
+- **Production Setup Required**:
+  1. Install `expo-in-app-purchases` (requires development build, not Expo Go)
+  2. Configure products in App Store Connect and Google Play Console:
+     - Monthly: `com.spendful.app.premium.monthly` ($0.99/month)
+     - Yearly: `com.spendful.app.premium.yearly` ($8.99/year)
+     - Lifetime: `com.spendful.app.premium.lifetime` ($14.99 one-time)
+  3. Replace mock handlers in PaywallScreen with actual IAP purchase/restore flows
+  4. Add server-side receipt validation for security
+- **Features**: Restore Purchases button included (Apple requirement)
 
 ### Build & Development
 - **expo**: Core Expo SDK and tooling

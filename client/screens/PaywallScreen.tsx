@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator, Platform, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -15,6 +15,24 @@ import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { updateSubscription } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
+
+/**
+ * IAP INTEGRATION NOTE:
+ * 
+ * For production, replace the mock subscription logic with real IAP:
+ * 
+ * 1. Install expo-in-app-purchases (requires development build, not Expo Go)
+ *    npx expo install expo-in-app-purchases
+ * 
+ * 2. Configure products in App Store Connect and Google Play Console:
+ *    - Monthly: com.spendful.app.premium.monthly ($0.99/month)
+ *    - Yearly: com.spendful.app.premium.yearly ($8.99/year)
+ *    - Lifetime: com.spendful.app.premium.lifetime ($14.99 one-time)
+ * 
+ * 3. Replace handleSubscribe with actual IAP purchase flow
+ * 4. Replace handleRestorePurchases with actual restore flow
+ * 5. Add receipt validation on your backend for security
+ */
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -57,6 +75,7 @@ export default function PaywallScreen() {
 
   const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const handleSelectPlan = (plan: PlanType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -83,6 +102,32 @@ export default function PaywallScreen() {
       console.error("Error processing subscription:", error);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleRestorePurchases = async () => {
+    try {
+      setIsRestoring(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+      // TODO: Replace with actual IAP restore logic
+      // In production:
+      // const history = await InAppPurchases.getPurchaseHistoryAsync();
+      // Validate receipts and restore subscription status
+      
+      // For demo/development, show a message
+      if (Platform.OS === "web") {
+        window.alert("Restore Purchases\n\nNo previous purchases found. If you believe this is an error, please contact support.");
+      } else {
+        Alert.alert(
+          "Restore Purchases",
+          "No previous purchases found. If you believe this is an error, please contact support."
+        );
+      }
+    } catch (error) {
+      console.error("Error restoring purchases:", error);
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -222,11 +267,27 @@ export default function PaywallScreen() {
             )}
           </Button>
 
-          <Pressable onPress={handleDismiss} style={styles.notNowButton}>
-            <ThemedText type="body" secondary>
-              Not now
-            </ThemedText>
-          </Pressable>
+          <View style={styles.secondaryButtons}>
+            <Pressable onPress={handleDismiss} style={styles.notNowButton}>
+              <ThemedText type="body" secondary>
+                Not now
+              </ThemedText>
+            </Pressable>
+
+            <Pressable 
+              onPress={handleRestorePurchases} 
+              style={styles.restoreButton}
+              disabled={isRestoring}
+            >
+              {isRestoring ? (
+                <ActivityIndicator size="small" color={theme.textSecondary} />
+              ) : (
+                <ThemedText type="body" secondary>
+                  Restore Purchases
+                </ThemedText>
+              )}
+            </Pressable>
+          </View>
 
           <ThemedText type="caption" muted style={styles.termsText}>
             Recurring billing. Cancel anytime in Settings.
@@ -332,10 +393,19 @@ const styles = StyleSheet.create({
   subscribeButton: {
     marginBottom: Spacing.lg,
   },
+  secondaryButtons: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: Spacing.xl,
+    marginBottom: Spacing.md,
+  },
   notNowButton: {
     alignItems: "center",
     paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
+  },
+  restoreButton: {
+    alignItems: "center",
+    paddingVertical: Spacing.md,
   },
   termsText: {
     textAlign: "center",

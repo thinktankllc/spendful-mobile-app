@@ -69,12 +69,16 @@ export function Button({
         animatedStyle,
       ]}
     >
-      <ThemedText
-        type="body"
-        style={[styles.buttonText, { color: theme.buttonText }]}
-      >
-        {children}
-      </ThemedText>
+      {typeof children === "string" ? (
+        <ThemedText
+          type="body"
+          style={[styles.buttonText, { color: theme.buttonText }]}
+        >
+          {children}
+        </ThemedText>
+      ) : (
+        children
+      )}
     </AnimatedPressable>
   );
 }

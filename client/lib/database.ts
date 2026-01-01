@@ -68,6 +68,8 @@ export type DefaultCategory = typeof DEFAULT_CATEGORIES[number];
 
 export const SPENDING_CATEGORIES = DEFAULT_CATEGORIES;
 
+export type ThemeMode = "light" | "dark" | "system";
+
 export interface AppSettings {
   daily_reminder_time: string;
   notifications_enabled: boolean;
@@ -75,7 +77,9 @@ export interface AppSettings {
   tone: string;
   first_launch_at: number | null;
   onboarding_completed: boolean;
+  show_onboarding_on_launch: boolean;
   default_currency: string;
+  theme_mode: ThemeMode;
   updated_at: number;
 }
 
@@ -288,7 +292,9 @@ function getDefaultSettings(): AppSettings {
     tone: "calm",
     first_launch_at: null,
     onboarding_completed: false,
+    show_onboarding_on_launch: false,
     default_currency: "USD",
+    theme_mode: "system",
     updated_at: Date.now(),
   };
 }

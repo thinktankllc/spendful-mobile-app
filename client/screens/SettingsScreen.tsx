@@ -23,6 +23,7 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
+import { useThemeContext } from "@/context/ThemeContext";
 import {
   getAppSettings,
   updateAppSettings,
@@ -36,6 +37,7 @@ import {
   Subscription,
   CustomCategory,
   SUPPORTED_CURRENCIES,
+  ThemeMode,
 } from "@/lib/database";
 import {
   scheduleNotification,
@@ -46,9 +48,16 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
+const THEME_OPTIONS: { value: ThemeMode; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+  { value: "light", label: "Light", icon: "sun" },
+  { value: "dark", label: "Dark", icon: "moon" },
+  { value: "system", label: "System", icon: "smartphone" },
+];
+
 export default function SettingsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
+  const { themeMode, setThemeMode } = useThemeContext();
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -209,6 +218,27 @@ export default function SettingsScreen() {
     return currency || SUPPORTED_CURRENCIES[0];
   };
 
+  const handleThemeModeChange = async (mode: ThemeMode) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await setThemeMode(mode);
+    } catch (error) {
+      console.error("Error updating theme mode:", error);
+    }
+  };
+
+  const handleOnboardingToggle = async (value: boolean) => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await updateAppSettings({ show_onboarding_on_launch: value });
+      setSettings((prev) =>
+        prev ? { ...prev, show_onboarding_on_launch: value } : null
+      );
+    } catch (error) {
+      console.error("Error updating onboarding setting:", error);
+    }
+  };
+
   const handleExport = async (format: "csv" | "json") => {
     try {
       setIsExporting(true);
@@ -341,6 +371,80 @@ export default function SettingsScreen() {
               />
             </View>
           ) : null}
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="small" secondary style={styles.sectionTitle}>
+            Appearance
+          </ThemedText>
+
+          <Card elevation={1} style={styles.settingsCard}>
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Feather name="eye" size={20} color={theme.text} />
+                <ThemedText type="body" style={styles.settingLabel}>
+                  Theme
+                </ThemedText>
+              </View>
+            </View>
+            <View style={styles.themeOptionsRow}>
+              {THEME_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={[
+                    styles.themeOption,
+                    {
+                      backgroundColor:
+                        themeMode === option.value
+                          ? theme.accent
+                          : theme.backgroundDefault,
+                      borderColor:
+                        themeMode === option.value
+                          ? theme.accent
+                          : theme.border,
+                    },
+                  ]}
+                  onPress={() => handleThemeModeChange(option.value)}
+                >
+                  <Feather
+                    name={option.icon}
+                    size={16}
+                    color={themeMode === option.value ? "#fff" : theme.text}
+                  />
+                  <ThemedText
+                    type="caption"
+                    style={{
+                      color: themeMode === option.value ? "#fff" : theme.text,
+                    }}
+                  >
+                    {option.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Feather name="book-open" size={20} color={theme.text} />
+                <View>
+                  <ThemedText type="body" style={styles.settingLabel}>
+                    Show intro on launch
+                  </ThemedText>
+                  <ThemedText type="caption" muted>
+                    Display welcome screens each time
+                  </ThemedText>
+                </View>
+              </View>
+              <Switch
+                value={settings?.show_onboarding_on_launch || false}
+                onValueChange={handleOnboardingToggle}
+                trackColor={{ false: theme.border, true: theme.accent }}
+                thumbColor={theme.backgroundRoot}
+              />
+            </View>
+          </Card>
         </View>
 
         <View style={styles.section}>
@@ -683,6 +787,23 @@ const styles = StyleSheet.create({
   addCategoryBtn: {
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
+  },
+  themeOptionsRow: {
+    flexDirection: "row",
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  themeOption: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
   },
   appInfo: {
     alignItems: "center",

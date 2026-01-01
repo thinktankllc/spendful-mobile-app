@@ -30,6 +30,7 @@ import {
   updateSpendEntry,
   deleteSpendEntry,
   getAppSettings,
+  updateAppSettings,
   getSubscription,
   canViewDate,
   formatCurrency,
@@ -68,10 +69,20 @@ export default function DailyPromptScreen() {
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (forceRefresh = false) => {
     try {
       const settings = await getAppSettings();
+      
       if (!settings.onboarding_completed) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Onboarding" }],
+        });
+        return;
+      }
+      
+      if (settings.show_onboarding_on_launch) {
+        await updateAppSettings({ show_onboarding_on_launch: false });
         navigation.reset({
           index: 0,
           routes: [{ name: "Onboarding" }],
@@ -81,9 +92,6 @@ export default function DailyPromptScreen() {
 
       const effectiveDefaultCurrency = settings.default_currency || "USD";
       setDefaultCurrency(effectiveDefaultCurrency);
-      if (screenState === "loading") {
-        setCurrency(effectiveDefaultCurrency);
-      }
 
       const subscription = await getSubscription();
       const canAccess = canViewDate(targetDate, subscription, settings.free_history_days);
@@ -104,11 +112,16 @@ export default function DailyPromptScreen() {
       
       setDayData(data);
       setCategories(allCategories);
-      setScreenState("day_view");
+      
+      if (forceRefresh) {
+        setScreenState("day_view");
+      } else {
+        setScreenState((prev) => (prev === "loading" ? "day_view" : prev));
+      }
     } catch (error) {
-      setScreenState("day_view");
+      setScreenState((prev) => (prev === "loading" ? "day_view" : prev));
     }
-  }, [navigation, targetDate, isToday, screenState]);
+  }, [navigation, targetDate, isToday]);
 
   useFocusEffect(
     useCallback(() => {
@@ -148,7 +161,7 @@ export default function DailyPromptScreen() {
     const doDelete = async () => {
       try {
         await deleteSpendEntry(entry.entry_id);
-        await loadData();
+        await loadData(true);
       } catch (error) {
         console.error("Error deleting entry:", error);
       }
@@ -197,7 +210,7 @@ export default function DailyPromptScreen() {
       setCurrency(defaultCurrency);
       setNote("");
       setEditingEntry(null);
-      await loadData();
+      await loadData(true);
     } catch (error) {
       console.error("Error saving entry:", error);
     } finally {
