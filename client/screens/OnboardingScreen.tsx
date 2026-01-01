@@ -1,24 +1,22 @@
 import React, { useState } from "react";
-import {
-  View,
-  StyleSheet,
-  Pressable,
-  Platform,
-} from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, CommonActions } from "@react-navigation/native";
+import { CommonActions, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { updateAppSettings } from "@/lib/database";
-import { scheduleNotification, requestNotificationPermission } from "@/lib/notifications";
+import {
+  requestNotificationPermission,
+  scheduleNotification,
+} from "@/lib/notifications";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -129,14 +127,17 @@ export default function OnboardingScreen() {
     });
 
     if (notificationsEnabled) {
-      await scheduleNotification(reminderTime.getHours(), reminderTime.getMinutes());
+      await scheduleNotification(
+        reminderTime.getHours(),
+        reminderTime.getMinutes(),
+      );
     }
 
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
         routes: [{ name: "DailyPrompt" }],
-      })
+      }),
     );
   };
 
@@ -148,7 +149,7 @@ export default function OnboardingScreen() {
 
     const granted = await requestNotificationPermission();
     if (granted) {
-      setNotificationsEnabled(true);
+      setNotificationsEnabled((prevState) => !prevState);
     }
   };
 
@@ -171,8 +172,8 @@ export default function OnboardingScreen() {
       style={[
         styles.container,
         {
-          paddingTop: insets.top + Spacing.xl,
-          paddingBottom: insets.bottom + Spacing.xl,
+          paddingTop: insets.top,
+          paddingBottom: insets.bottom,
         },
       ]}
     >
@@ -205,9 +206,16 @@ export default function OnboardingScreen() {
           style={styles.pageContent}
         >
           <View
-            style={[styles.iconContainer, { backgroundColor: theme.accentLight }]}
+            style={[
+              styles.iconContainer,
+              { backgroundColor: theme.accentLight },
+            ]}
           >
-            <Feather name={currentPageData.icon} size={48} color={theme.accent} />
+            <Feather
+              name={currentPageData.icon}
+              size={48}
+              color={theme.accent}
+            />
           </View>
 
           <ThemedText type="h2" style={styles.title}>
@@ -221,17 +229,24 @@ export default function OnboardingScreen() {
           {isLastPage ? (
             <View style={styles.reminderSection}>
               <Pressable
-                style={[styles.timeButton, { backgroundColor: theme.backgroundDefault }]}
+                style={[
+                  styles.timeButton,
+                  { backgroundColor: theme.backgroundDefault },
+                ]}
                 onPress={() => setShowTimePicker(true)}
               >
                 <Feather name="clock" size={20} color={theme.text} />
                 <ThemedText type="h4" style={styles.timeText}>
                   {formatTime(reminderTime)}
                 </ThemedText>
-                <Feather name="chevron-right" size={20} color={theme.textMuted} />
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={theme.textMuted}
+                />
               </Pressable>
 
-              {(showTimePicker || Platform.OS === "ios") ? (
+              {showTimePicker || Platform.OS === "ios" ? (
                 <View style={styles.pickerContainer}>
                   <DateTimePicker
                     value={reminderTime}
@@ -254,7 +269,9 @@ export default function OnboardingScreen() {
                   <Feather
                     name={notificationsEnabled ? "bell" : "bell-off"}
                     size={20}
-                    color={notificationsEnabled ? theme.accent : theme.textMuted}
+                    color={
+                      notificationsEnabled ? theme.accent : theme.textMuted
+                    }
                   />
                   <ThemedText type="body" style={styles.notificationText}>
                     Daily reminders

@@ -29,7 +29,7 @@ export default function RootStackNavigator() {
       <Stack.Screen
         name="Onboarding"
         component={OnboardingScreen}
-        options={{ headerShown: false }}
+        options={{ headerShown: false, headerTitle: "Daily Prompt" }}
       />
       <Stack.Screen
         name="DailyPrompt"
