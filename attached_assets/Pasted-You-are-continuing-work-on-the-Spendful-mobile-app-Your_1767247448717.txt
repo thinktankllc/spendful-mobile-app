@@ -1,0 +1,238 @@
+You are continuing work on the Spendful mobile app.
+
+Your task is to implement a defined set of upgrades and bug fixes.
+Do NOT redesign the app from scratch.
+Do NOT remove existing functionality.
+
+────────────────────────────────
+CORE PRODUCT PRINCIPLES (DO NOT VIOLATE)
+────────────────────────────────
+• Spendful is a calm spending awareness app
+• NOT a budgeting app
+• No goals, no warnings, no shaming
+• Insight > control
+• UX must remain simple and reflective
+
+────────────────────────────────
+PRIORITY ORDER (IMPORTANT)
+────────────────────────────────
+1) Fix critical bugs (notifications, payments)
+2) Monetization updates
+3) Data model upgrades
+4) User-requested features
+5) BONUS: AI insights (only if core work is stable)
+
+────────────────────────────────
+CHANGE #1 — FREE TIER & PRICING (MANDATORY)
+────────────────────────────────
+
+Update free tier:
+- Free users can view/edit the last **30 days** of history
+- Paid users have full access
+
+Update pricing:
+- $0.99 / month
+- $8.99 / year
+- Lifetime plan (if present) remains unchanged
+
+Ensure:
+- All gating logic uses 30 days (not 14)
+- Paywall copy reflects new pricing
+- No hardcoded values remain
+
+────────────────────────────────
+CHANGE #2 — FIX PAYMENTS (CRITICAL BUG)
+────────────────────────────────
+
+Fix in-app purchases so they work correctly.
+
+Requirements:
+- Apple IAP and Google Play Billing must function
+- Subscription entitlements must update correctly
+- Restore purchases must work
+- Subscription expiration must be handled correctly
+
+Create a single helper:
+  isPremium(): boolean
+
+Use this helper everywhere for gating logic.
+
+────────────────────────────────
+CHANGE #3 — FIX DAILY REMINDERS (CRITICAL BUG)
+────────────────────────────────
+
+Fix daily reminder notifications.
+
+Requirements:
+- Notifications must fire at user-selected local time
+- Permission handling must be correct
+- Notifications must work after app restart
+- User can enable/disable reminders
+- Reminder copy:
+  “Did you spend money today?”
+
+Do NOT add streak pressure or urgency language.
+
+────────────────────────────────
+CHANGE #4 — USER-DEFINED CATEGORIES (NEW FEATURE)
+────────────────────────────────
+
+Allow users to create custom categories.
+
+Requirements:
+- User can add, rename, and delete custom categories
+- Default categories remain available
+- Categories are optional per entry
+- Category picker shows:
+  - Default categories
+  - User-defined categories
+
+Database:
+- Add `categories` table:
+  - id (UUID)
+  - name (TEXT)
+  - is_default (boolean)
+  - created_at
+
+Daily entries store category_id (nullable).
+
+Do NOT auto-categorize.
+Do NOT add subcategories.
+
+────────────────────────────────
+CHANGE #5 — MULTI-CURRENCY SUPPORT
+────────────────────────────────
+
+Allow users to log spending in different currencies.
+
+Requirements:
+- App-level default currency (set in settings)
+- Per-entry currency override allowed
+- Display correct currency symbol per entry
+- Store currency as ISO code (e.g. USD, EUR, VND)
+
+Do NOT implement currency conversion.
+Do NOT fetch exchange rates.
+
+This is display + storage only.
+
+────────────────────────────────
+CHANGE #6 — RECURRING SPEND ENTRIES
+────────────────────────────────
+
+Allow users to create recurring spend entries.
+
+Requirements:
+- Frequencies:
+  - Weekly
+  - Biweekly
+  - Monthly
+- Each recurring item includes:
+  - amount
+  - category
+  - currency
+  - start date
+  - optional end date
+- Recurring entries auto-generate daily entries
+- Generated entries must be editable individually
+
+UX rules:
+- Recurring setup should be simple
+- Do NOT show complex schedules
+- Recurring entries must feel optional and lightweight
+
+Database:
+- Add `recurring_entries` table
+- Generated entries link back via recurring_id
+
+────────────────────────────────
+CHANGE #7 — DATA EXPORT
+────────────────────────────────
+
+Add data export functionality.
+
+Requirements:
+- Export formats:
+  - CSV
+  - JSON
+- Export includes:
+  - All entries
+  - Categories
+  - Recurring entries
+- Export via share sheet
+- Respect free vs paid limits:
+  - Free: export last 30 days
+  - Paid: full export
+
+Do NOT require login.
+Do NOT upload data to servers.
+
+────────────────────────────────
+BONUS — AI-ENABLED INSIGHTS (OPTIONAL, LAST)
+────────────────────────────────
+
+ONLY implement this if all above work correctly.
+
+AI Insights should:
+- Be optional
+- Be calm and reflective
+- Never give commands
+
+Allowed insights:
+- Pattern observations
+- Gentle reflections
+- Spending rhythm summaries
+
+Examples:
+- “You tend to spend more on weekdays.”
+- “Groceries appear consistently each week.”
+- “Your spending is spread evenly across the month.”
+
+NOT allowed:
+❌ Budget advice
+❌ Saving targets
+❌ Warnings
+❌ Financial coaching tone
+
+Implementation:
+- Can be rule-based OR AI-based
+- If AI-based, keep logic lightweight and optional
+- AI insights must never block app usage
+
+────────────────────────────────
+FILES LIKELY INVOLVED
+────────────────────────────────
+- DailyPrompt.tsx
+- WeeklySummary.tsx
+- MonthlyOverview.tsx
+- Settings.tsx
+- subscription.service.ts
+- notification.service.ts
+- database schema & migrations
+- export utilities
+
+Modify ONLY what is required.
+
+────────────────────────────────
+WHAT NOT TO DO
+────────────────────────────────
+❌ Do NOT turn Spendful into a budgeting app
+❌ Do NOT add goals, targets, or alerts
+❌ Do NOT add charts with axes
+❌ Do NOT auto-categorize
+❌ Do NOT add cloud sync or accounts
+❌ Do NOT redesign onboarding
+
+────────────────────────────────
+DEFINITION OF DONE
+────────────────────────────────
+- Payments work correctly
+- Notifications fire reliably
+- 30-day free tier enforced
+- Custom categories work
+- Multi-currency supported
+- Recurring entries generate correctly
+- Data export works
+- App remains calm and simple
+
+Complete changes carefully and incrementally.

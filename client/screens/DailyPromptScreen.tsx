@@ -35,7 +35,9 @@ import {
   formatCurrency,
   SpendEntry,
   DayData,
-  SPENDING_CATEGORIES,
+  getAllCategories,
+  SUPPORTED_CURRENCIES,
+  generateRecurringEntriesForToday,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -58,9 +60,13 @@ export default function DailyPromptScreen() {
   const [editingEntry, setEditingEntry] = useState<SpendEntry | null>(null);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState<string>("Uncategorized");
+  const [currency, setCurrency] = useState<string>("USD");
+  const [defaultCurrency, setDefaultCurrency] = useState<string>("USD");
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
 
   const loadData = useCallback(async () => {
     try {
@@ -73,6 +79,12 @@ export default function DailyPromptScreen() {
         return;
       }
 
+      const effectiveDefaultCurrency = settings.default_currency || "USD";
+      setDefaultCurrency(effectiveDefaultCurrency);
+      if (screenState === "loading") {
+        setCurrency(effectiveDefaultCurrency);
+      }
+
       const subscription = await getSubscription();
       const canAccess = canViewDate(targetDate, subscription, settings.free_history_days);
 
@@ -81,13 +93,22 @@ export default function DailyPromptScreen() {
         return;
       }
 
-      const data = await getDayData(targetDate);
+      if (isToday) {
+        await generateRecurringEntriesForToday();
+      }
+
+      const [data, allCategories] = await Promise.all([
+        getDayData(targetDate),
+        getAllCategories(),
+      ]);
+      
       setDayData(data);
+      setCategories(allCategories);
       setScreenState("day_view");
     } catch (error) {
       setScreenState("day_view");
     }
-  }, [navigation, targetDate]);
+  }, [navigation, targetDate, isToday, screenState]);
 
   useFocusEffect(
     useCallback(() => {
@@ -105,6 +126,7 @@ export default function DailyPromptScreen() {
     triggerHaptic();
     setAmount("");
     setCategory("Uncategorized");
+    setCurrency(defaultCurrency);
     setNote("");
     setEditingEntry(null);
     setScreenState("add_entry");
@@ -114,6 +136,7 @@ export default function DailyPromptScreen() {
     triggerHaptic();
     setAmount(entry.amount.toString());
     setCategory(entry.category || "Uncategorized");
+    setCurrency(entry.currency || defaultCurrency);
     setNote(entry.note || "");
     setEditingEntry(entry);
     setScreenState("edit_entry");
@@ -162,14 +185,16 @@ export default function DailyPromptScreen() {
           editingEntry.entry_id,
           parsedAmount,
           category,
-          note.trim() || null
+          note.trim() || null,
+          currency
         );
       } else {
-        await addSpendEntry(targetDate, parsedAmount, category, note.trim() || null);
+        await addSpendEntry(targetDate, parsedAmount, category, note.trim() || null, currency);
       }
 
       setAmount("");
       setCategory("Uncategorized");
+      setCurrency(defaultCurrency);
       setNote("");
       setEditingEntry(null);
       await loadData();
@@ -183,9 +208,11 @@ export default function DailyPromptScreen() {
   const handleCancel = () => {
     setAmount("");
     setCategory("Uncategorized");
+    setCurrency(defaultCurrency);
     setNote("");
     setEditingEntry(null);
     setShowCategoryPicker(false);
+    setShowCurrencyPicker(false);
     setScreenState("day_view");
   };
 
@@ -213,6 +240,8 @@ export default function DailyPromptScreen() {
   };
 
   const renderCategorySelector = () => {
+    const categoryList = categories.length > 0 ? categories : ["Uncategorized"];
+    
     if (Platform.OS === "web") {
       return (
         <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
@@ -220,7 +249,7 @@ export default function DailyPromptScreen() {
             Category
           </ThemedText>
           <View style={styles.categoryButtons}>
-            {SPENDING_CATEGORIES.map((cat) => (
+            {categoryList.map((cat: string) => (
               <Pressable
                 key={cat}
                 style={[
@@ -268,7 +297,7 @@ export default function DailyPromptScreen() {
             exiting={FadeOut.duration(100)}
             style={styles.categoryList}
           >
-            {SPENDING_CATEGORIES.map((cat) => (
+            {categoryList.map((cat: string) => (
               <Pressable
                 key={cat}
                 style={[
@@ -294,6 +323,57 @@ export default function DailyPromptScreen() {
     );
   };
 
+  const renderCurrencySelector = () => {
+    const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.code === currency);
+    
+    return (
+      <View style={[styles.categoryContainer, { backgroundColor: theme.backgroundDefault }]}>
+        <ThemedText type="small" secondary style={styles.categoryLabel}>
+          Currency
+        </ThemedText>
+        <Pressable
+          style={[styles.categorySelector, { backgroundColor: theme.backgroundSecondary }]}
+          onPress={() => setShowCurrencyPicker(!showCurrencyPicker)}
+        >
+          <ThemedText type="body">{currencyInfo ? `${currencyInfo.symbol} ${currencyInfo.code}` : currency}</ThemedText>
+          <Feather
+            name={showCurrencyPicker ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={theme.textSecondary}
+          />
+        </Pressable>
+        {showCurrencyPicker ? (
+          <Animated.View 
+            entering={FadeIn.duration(150)} 
+            exiting={FadeOut.duration(100)}
+            style={styles.categoryList}
+          >
+            {SUPPORTED_CURRENCIES.map((curr) => (
+              <Pressable
+                key={curr.code}
+                style={[
+                  styles.categoryOption,
+                  {
+                    backgroundColor: currency === curr.code ? theme.accentLight : "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  setCurrency(curr.code);
+                  setShowCurrencyPicker(false);
+                }}
+              >
+                <ThemedText type="body">{curr.symbol} {curr.code} - {curr.name}</ThemedText>
+                {currency === curr.code ? (
+                  <Feather name="check" size={18} color={theme.accent} />
+                ) : null}
+              </Pressable>
+            ))}
+          </Animated.View>
+        ) : null}
+      </View>
+    );
+  };
+
   const renderEntryItem = ({ item }: { item: SpendEntry }) => (
     <Animated.View entering={FadeIn.duration(200)}>
       <Card style={styles.entryCard}>
@@ -303,7 +383,7 @@ export default function DailyPromptScreen() {
         >
           <View style={styles.entryMain}>
             <View style={styles.entryHeader}>
-              <ThemedText type="h3">{formatCurrency(item.amount)}</ThemedText>
+              <ThemedText type="h3">{formatCurrency(item.amount, item.currency || defaultCurrency)}</ThemedText>
               <ThemedText type="small" secondary>
                 {formatEntryTime(item.timestamp)}
               </ThemedText>
@@ -345,7 +425,7 @@ export default function DailyPromptScreen() {
                 {isToday ? "Today's spending" : "Day total"}
               </ThemedText>
               <ThemedText type="h1" style={styles.totalAmount}>
-                {formatCurrency(dayData.totalAmount)}
+                {formatCurrency(dayData.totalAmount, defaultCurrency)}
               </ThemedText>
               <ThemedText type="small" secondary>
                 {dayData.entries.length} {dayData.entries.length === 1 ? "entry" : "entries"}
@@ -394,7 +474,11 @@ export default function DailyPromptScreen() {
     );
   };
 
-  const renderEntryForm = () => (
+  const renderEntryForm = () => {
+    const currencyInfo = SUPPORTED_CURRENCIES.find((c) => c.code === currency);
+    const currencySymbol = currencyInfo ? currencyInfo.symbol : "$";
+    
+    return (
     <Animated.View 
       entering={FadeIn.duration(200)} 
       exiting={FadeOut.duration(150)}
@@ -411,7 +495,7 @@ export default function DailyPromptScreen() {
         ]}
       >
         <ThemedText type="h2" style={styles.currencySymbol}>
-          $
+          {currencySymbol}
         </ThemedText>
         <TextInput
           style={[styles.amountInput, { color: theme.text }]}
@@ -425,6 +509,7 @@ export default function DailyPromptScreen() {
       </View>
 
       {renderCategorySelector()}
+      {renderCurrencySelector()}
 
       <View
         style={[
@@ -464,6 +549,7 @@ export default function DailyPromptScreen() {
       </View>
     </Animated.View>
   );
+  };
 
   const renderContent = () => {
     switch (screenState) {

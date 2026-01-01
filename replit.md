@@ -7,10 +7,14 @@ Spendful is a calm, minimal daily spend awareness mobile application built with 
 The app follows an ethical, non-manipulative design philosophy with a calm, non-judgmental tone throughout. It's designed to be offline-first with local SQLite storage, no authentication required, and minimal external dependencies.
 
 **Key Features:**
-- Single daily action: log whether you spent money
+- Multiple spend entries per day with detailed tracking
 - Weekly and monthly spend awareness summaries
 - Optional daily reminder notifications
-- Freemium model with 14-day free history access
+- Multi-currency support (12 currencies: USD, EUR, GBP, JPY, CNY, KRW, INR, VND, BRL, CAD, AUD, MXN)
+- Custom category management (add/remove personal categories)
+- Recurring entries (weekly/biweekly/monthly auto-generation)
+- Freemium model with 30-day free history access
+- Premium plans: $0.99/month, $8.99/year, or $14.99 lifetime
 - Cross-platform support (iOS, Android, Web)
 
 ## User Preferences
@@ -39,10 +43,13 @@ Linear stack navigation from onboarding to daily prompt:
 ### Data Storage
 - **Local Storage**: AsyncStorage for offline-first data persistence (cross-platform: web, iOS, Android)
 - **Data Models**:
-  - `spend_entries`: Stores individual spending entries (entry_id, date, amount, category, note, timestamp) - supports multiple entries per day
-  - `app_settings`: Configuration (reminder time, notifications, free history days, onboarding status)
+  - `spend_entries`: Stores individual spending entries (entry_id, date, amount, category, currency, note, timestamp) - supports multiple entries per day
+  - `app_settings`: Configuration (reminder time, notifications, free history days, default_currency, onboarding status)
   - `subscriptions`: Subscription status tracking
+  - `custom_categories`: User-defined custom categories (id, name, created_at)
+  - `recurring_entries`: Recurring spend templates (id, amount, category, currency, frequency, start_date, end_date, last_generated_date, is_active)
 - **Data Migration**: Automatic v1→v2 migration converts legacy daily_logs to new spend_entries format on first load
+- **Recurring Entry Generation**: On app load, recurring entries are automatically generated for today based on frequency (weekly/biweekly/monthly)
 - **Note**: Changed from expo-sqlite to AsyncStorage because expo-sqlite doesn't bundle on web platform. AsyncStorage works on all platforms and is sufficient for this app's simple data model.
 
 ### Backend Architecture

@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, CommonActions } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
-import * as Notifications from "expo-notifications";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 
@@ -19,6 +18,7 @@ import { Button } from "@/components/Button";
 import { Spacing, BorderRadius } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { updateAppSettings } from "@/lib/database";
+import { scheduleNotification, requestNotificationPermission } from "@/lib/notifications";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -128,6 +128,10 @@ export default function OnboardingScreen() {
       notifications_enabled: notificationsEnabled,
     });
 
+    if (notificationsEnabled) {
+      await scheduleNotification(reminderTime.getHours(), reminderTime.getMinutes());
+    }
+
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
@@ -136,22 +140,14 @@ export default function OnboardingScreen() {
     );
   };
 
-  const requestNotificationPermission = async () => {
+  const handleRequestNotificationPermission = async () => {
     if (Platform.OS === "web") {
       setNotificationsEnabled(!notificationsEnabled);
       return;
     }
 
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== "granted") {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus === "granted") {
+    const granted = await requestNotificationPermission();
+    if (granted) {
       setNotificationsEnabled(true);
     }
   };
@@ -252,7 +248,7 @@ export default function OnboardingScreen() {
                   styles.notificationToggle,
                   { backgroundColor: theme.backgroundDefault },
                 ]}
-                onPress={requestNotificationPermission}
+                onPress={handleRequestNotificationPermission}
               >
                 <View style={styles.notificationContent}>
                   <Feather

@@ -31,15 +31,15 @@ interface PricingOption {
 const PRICING_OPTIONS: PricingOption[] = [
   {
     type: "monthly",
-    price: "$1.99",
+    price: "$0.99",
     period: "/month",
     description: "Cancel anytime",
   },
   {
     type: "yearly",
-    price: "$9.99",
+    price: "$8.99",
     period: "/year",
-    description: "Save 58%",
+    description: "Save 24%",
     recommended: true,
   },
   {

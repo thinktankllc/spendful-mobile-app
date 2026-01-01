@@ -5,6 +5,8 @@ const STORAGE_KEYS = {
   APP_SETTINGS: "spendful_app_settings",
   SUBSCRIPTION: "spendful_subscription",
   MIGRATED_V2: "spendful_migrated_v2",
+  CUSTOM_CATEGORIES: "spendful_custom_categories",
+  RECURRING_ENTRIES: "spendful_recurring_entries",
 };
 
 export interface SpendEntry {
@@ -12,8 +14,30 @@ export interface SpendEntry {
   date: string;
   amount: number;
   category: string | null;
+  currency: string | null;
   note: string | null;
   timestamp: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface CustomCategory {
+  id: string;
+  name: string;
+  created_at: number;
+}
+
+export interface RecurringEntry {
+  id: string;
+  amount: number;
+  category: string | null;
+  currency: string | null;
+  note: string | null;
+  frequency: "weekly" | "biweekly" | "monthly";
+  start_date: string;
+  end_date: string | null;
+  last_generated_date: string | null;
+  is_active: boolean;
   created_at: number;
   updated_at: number;
 }
@@ -25,23 +49,24 @@ export interface DayData {
   hasSpend: boolean;
 }
 
-export const SPENDING_CATEGORIES = [
+export const DEFAULT_CATEGORIES = [
   "Uncategorized",
   "Groceries",
   "Shopping",
   "Rent",
-  "Water",
-  "Electricity",
-  "Sewage",
+  "Utilities",
   "Insurance",
-  "Mortgage",
   "Transportation",
   "Dining",
   "Subscriptions",
+  "Entertainment",
+  "Healthcare",
   "Other",
 ] as const;
 
-export type SpendingCategory = typeof SPENDING_CATEGORIES[number];
+export type DefaultCategory = typeof DEFAULT_CATEGORIES[number];
+
+export const SPENDING_CATEGORIES = DEFAULT_CATEGORIES;
 
 export interface AppSettings {
   daily_reminder_time: string;
@@ -50,6 +75,7 @@ export interface AppSettings {
   tone: string;
   first_launch_at: number | null;
   onboarding_completed: boolean;
+  default_currency: string;
   updated_at: number;
 }
 
@@ -105,6 +131,7 @@ async function migrateFromV1(): Promise<void> {
             date: log.date,
             amount: log.amount,
             category: log.category || "Uncategorized",
+            currency: null,
             note: log.note,
             timestamp: log.created_at,
             created_at: log.created_at,
@@ -160,7 +187,8 @@ export async function addSpendEntry(
   date: string,
   amount: number,
   category: string | null = null,
-  note: string | null = null
+  note: string | null = null,
+  currency: string | null = null
 ): Promise<SpendEntry> {
   const entries = await getAllEntries();
   const now = Date.now();
@@ -170,6 +198,7 @@ export async function addSpendEntry(
     date,
     amount,
     category: category || "Uncategorized",
+    currency,
     note,
     timestamp: now,
     created_at: now,
@@ -185,7 +214,8 @@ export async function updateSpendEntry(
   entryId: string,
   amount: number,
   category: string | null = null,
-  note: string | null = null
+  note: string | null = null,
+  currency: string | null = null
 ): Promise<SpendEntry | null> {
   const entries = await getAllEntries();
   const index = entries.findIndex((e) => e.entry_id === entryId);
@@ -196,6 +226,7 @@ export async function updateSpendEntry(
     ...entries[index],
     amount,
     category: category || "Uncategorized",
+    currency,
     note,
     updated_at: Date.now(),
   };
@@ -253,10 +284,11 @@ function getDefaultSettings(): AppSettings {
   return {
     daily_reminder_time: "20:00",
     notifications_enabled: false,
-    free_history_days: 14,
+    free_history_days: 30,
     tone: "calm",
     first_launch_at: null,
     onboarding_completed: false,
+    default_currency: "USD",
     updated_at: Date.now(),
   };
 }
@@ -479,11 +511,227 @@ export function calculateSpendingStats(
   };
 }
 
-export function formatCurrency(amount: number): string {
-  return `$${amount.toFixed(2)}`;
+export function formatCurrency(amount: number, currency: string = "USD"): string {
+  const symbols: Record<string, string> = {
+    USD: "$",
+    EUR: "\u20AC",
+    GBP: "\u00A3",
+    JPY: "\u00A5",
+    CNY: "\u00A5",
+    KRW: "\u20A9",
+    INR: "\u20B9",
+    VND: "\u20AB",
+    BRL: "R$",
+    CAD: "C$",
+    AUD: "A$",
+    MXN: "MX$",
+  };
+  const symbol = symbols[currency] || currency + " ";
+  return `${symbol}${amount.toFixed(2)}`;
 }
 
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr + "T00:00:00");
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export async function getCustomCategories(): Promise<CustomCategory[]> {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.CUSTOM_CATEGORIES);
+    if (!data) return [];
+    return JSON.parse(data) as CustomCategory[];
+  } catch {
+    return [];
+  }
+}
+
+export async function addCustomCategory(name: string): Promise<CustomCategory> {
+  const categories = await getCustomCategories();
+  const newCategory: CustomCategory = {
+    id: generateUUID(),
+    name: name.trim(),
+    created_at: Date.now(),
+  };
+  categories.push(newCategory);
+  await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, JSON.stringify(categories));
+  return newCategory;
+}
+
+export async function renameCustomCategory(id: string, newName: string): Promise<boolean> {
+  const categories = await getCustomCategories();
+  const index = categories.findIndex((c) => c.id === id);
+  if (index < 0) return false;
+  
+  categories[index].name = newName.trim();
+  await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, JSON.stringify(categories));
+  return true;
+}
+
+export async function deleteCustomCategory(id: string): Promise<boolean> {
+  const categories = await getCustomCategories();
+  const filtered = categories.filter((c) => c.id !== id);
+  if (filtered.length === categories.length) return false;
+  
+  await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, JSON.stringify(filtered));
+  return true;
+}
+
+export async function getAllCategories(): Promise<string[]> {
+  const customCategories = await getCustomCategories();
+  const customNames = customCategories.map((c) => c.name);
+  return [...DEFAULT_CATEGORIES, ...customNames];
+}
+
+export const SUPPORTED_CURRENCIES = [
+  { code: "USD", name: "US Dollar", symbol: "$" },
+  { code: "EUR", name: "Euro", symbol: "\u20AC" },
+  { code: "GBP", name: "British Pound", symbol: "\u00A3" },
+  { code: "JPY", name: "Japanese Yen", symbol: "\u00A5" },
+  { code: "CNY", name: "Chinese Yuan", symbol: "\u00A5" },
+  { code: "KRW", name: "Korean Won", symbol: "\u20A9" },
+  { code: "INR", name: "Indian Rupee", symbol: "\u20B9" },
+  { code: "VND", name: "Vietnamese Dong", symbol: "\u20AB" },
+  { code: "BRL", name: "Brazilian Real", symbol: "R$" },
+  { code: "CAD", name: "Canadian Dollar", symbol: "C$" },
+  { code: "AUD", name: "Australian Dollar", symbol: "A$" },
+  { code: "MXN", name: "Mexican Peso", symbol: "MX$" },
+] as const;
+
+export async function getRecurringEntries(): Promise<RecurringEntry[]> {
+  try {
+    const data = await AsyncStorage.getItem(STORAGE_KEYS.RECURRING_ENTRIES);
+    if (!data) return [];
+    return JSON.parse(data) as RecurringEntry[];
+  } catch {
+    return [];
+  }
+}
+
+export async function addRecurringEntry(
+  amount: number,
+  frequency: "weekly" | "biweekly" | "monthly",
+  startDate: string,
+  category: string | null = null,
+  currency: string | null = null,
+  note: string | null = null,
+  endDate: string | null = null
+): Promise<RecurringEntry> {
+  const entries = await getRecurringEntries();
+  const now = Date.now();
+  
+  const newEntry: RecurringEntry = {
+    id: generateUUID(),
+    amount,
+    category: category || "Uncategorized",
+    currency,
+    note,
+    frequency,
+    start_date: startDate,
+    end_date: endDate,
+    last_generated_date: null,
+    is_active: true,
+    created_at: now,
+    updated_at: now,
+  };
+  
+  entries.push(newEntry);
+  await AsyncStorage.setItem(STORAGE_KEYS.RECURRING_ENTRIES, JSON.stringify(entries));
+  return newEntry;
+}
+
+export async function updateRecurringEntry(
+  id: string,
+  updates: Partial<Omit<RecurringEntry, "id" | "created_at" | "updated_at">>
+): Promise<RecurringEntry | null> {
+  const entries = await getRecurringEntries();
+  const index = entries.findIndex((e) => e.id === id);
+  
+  if (index < 0) return null;
+  
+  entries[index] = {
+    ...entries[index],
+    ...updates,
+    updated_at: Date.now(),
+  };
+  
+  await AsyncStorage.setItem(STORAGE_KEYS.RECURRING_ENTRIES, JSON.stringify(entries));
+  return entries[index];
+}
+
+export async function deleteRecurringEntry(id: string): Promise<boolean> {
+  const entries = await getRecurringEntries();
+  const filtered = entries.filter((e) => e.id !== id);
+  if (filtered.length === entries.length) return false;
+  
+  await AsyncStorage.setItem(STORAGE_KEYS.RECURRING_ENTRIES, JSON.stringify(filtered));
+  return true;
+}
+
+function getNextOccurrenceDate(
+  lastDate: string,
+  frequency: "weekly" | "biweekly" | "monthly"
+): string {
+  const date = new Date(lastDate + "T00:00:00");
+  
+  switch (frequency) {
+    case "weekly":
+      date.setDate(date.getDate() + 7);
+      break;
+    case "biweekly":
+      date.setDate(date.getDate() + 14);
+      break;
+    case "monthly":
+      date.setMonth(date.getMonth() + 1);
+      break;
+  }
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const LAST_RECURRING_CHECK_KEY = "spendful_last_recurring_check";
+
+export async function generateRecurringEntriesForToday(): Promise<number> {
+  const today = getTodayDate();
+  
+  const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY);
+  if (lastCheck === today) {
+    return 0;
+  }
+  
+  const recurringEntries = await getRecurringEntries();
+  let generated = 0;
+  
+  for (const recurring of recurringEntries) {
+    if (!recurring.is_active) continue;
+    if (recurring.end_date && recurring.end_date < today) continue;
+    if (recurring.start_date > today) continue;
+    
+    let nextDate = recurring.last_generated_date 
+      ? getNextOccurrenceDate(recurring.last_generated_date, recurring.frequency)
+      : recurring.start_date;
+    
+    while (nextDate <= today) {
+      if (recurring.end_date && nextDate > recurring.end_date) break;
+      
+      await addSpendEntry(
+        nextDate,
+        recurring.amount,
+        recurring.category,
+        recurring.note ? `[Recurring] ${recurring.note}` : "[Recurring]",
+        recurring.currency
+      );
+      
+      await updateRecurringEntry(recurring.id, { last_generated_date: nextDate });
+      generated++;
+      
+      nextDate = getNextOccurrenceDate(nextDate, recurring.frequency);
+    }
+  }
+  
+  await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today);
+  
+  return generated;
 }
