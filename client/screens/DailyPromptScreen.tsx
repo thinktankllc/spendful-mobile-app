@@ -587,7 +587,7 @@ export default function DailyPromptScreen() {
           <TextInput
             style={[styles.amountInput, { color: theme.text }]}
             value={amount}
-            onChangeText={setAmount}
+            onChangeText={(text) => setAmount(text.replace(/,/g, "."))}
             placeholder="0.00"
             placeholderTextColor={theme.textMuted}
             keyboardType="decimal-pad"
