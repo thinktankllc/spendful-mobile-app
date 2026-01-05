@@ -21,6 +21,7 @@ export const Colors = {
     notLoggedDot: "#E8E8E6",
     success: "#6B8E6B",
     warning: "#C9A86C",
+    error: "#D45A5A",
   },
   dark: {
     text: "#ECEDEE",
@@ -42,6 +43,7 @@ export const Colors = {
     notLoggedDot: "#3A3A38",
     success: "#6B8E6B",
     warning: "#C9A86C",
+    error: "#E87070",
   },
 };
 

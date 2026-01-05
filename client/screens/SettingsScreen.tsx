@@ -48,7 +48,11 @@ import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const THEME_OPTIONS: { value: ThemeMode; label: string; icon: keyof typeof Feather.glyphMap }[] = [
+const THEME_OPTIONS: {
+  value: ThemeMode;
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+}[] = [
   { value: "light", label: "Light", icon: "sun" },
   { value: "dark", label: "Dark", icon: "moon" },
   { value: "system", label: "System", icon: "smartphone" },
@@ -64,7 +68,9 @@ export default function SettingsScreen() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [reminderTime, setReminderTime] = useState(new Date());
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
-  const [customCategories, setCustomCategories] = useState<CustomCategory[]>([]);
+  const [customCategories, setCustomCategories] = useState<CustomCategory[]>(
+    []
+  );
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [isExporting, setIsExporting] = useState(false);
@@ -116,7 +122,10 @@ export default function SettingsScreen() {
       );
 
       if (value) {
-        await scheduleNotification(reminderTime.getHours(), reminderTime.getMinutes());
+        await scheduleNotification(
+          reminderTime.getHours(),
+          reminderTime.getMinutes()
+        );
       } else {
         await cancelAllNotifications();
       }
@@ -141,7 +150,10 @@ export default function SettingsScreen() {
       );
 
       if (settings?.notifications_enabled) {
-        await scheduleNotification(selectedDate.getHours(), selectedDate.getMinutes());
+        await scheduleNotification(
+          selectedDate.getHours(),
+          selectedDate.getMinutes()
+        );
       }
     }
   };
@@ -153,7 +165,9 @@ export default function SettingsScreen() {
   const getPlanDisplayName = () => {
     if (!subscription) return "Free";
     if (subscription.plan === "free" || !subscription.is_active) return "Free";
-    return subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1);
+    return (
+      subscription.plan.charAt(0).toUpperCase() + subscription.plan.slice(1)
+    );
   };
 
   const handleCurrencyChange = async (currencyCode: string) => {
@@ -245,7 +259,7 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       const data = await exportAllData();
-      
+
       if (data.entries.length === 0) {
         Alert.alert("No Data", "There are no spending entries to export.");
         setIsExporting(false);
@@ -254,10 +268,10 @@ export default function SettingsScreen() {
 
       const timestamp = new Date().toISOString().split("T")[0];
       const filename = `spendful-export-${timestamp}.${format}`;
-      
+
       let content: string;
       let mimeType: string;
-      
+
       if (format === "csv") {
         content = convertToCSV(data.entries);
         mimeType = "text/csv";
@@ -281,7 +295,7 @@ export default function SettingsScreen() {
         await FileSystem.writeAsStringAsync(fileUri, content, {
           encoding: FileSystem.EncodingType.UTF8,
         });
-        
+
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) {
           await Sharing.shareAsync(fileUri, {
@@ -289,12 +303,18 @@ export default function SettingsScreen() {
             dialogTitle: `Export Spendful Data (${format.toUpperCase()})`,
           });
         } else {
-          Alert.alert("Export Complete", `Your data has been saved to ${filename}`);
+          Alert.alert(
+            "Export Complete",
+            `Your data has been saved to ${filename}`
+          );
         }
       }
     } catch (error) {
       console.error("Error exporting data:", error);
-      Alert.alert("Export Failed", "Unable to export your data. Please try again.");
+      Alert.alert(
+        "Export Failed",
+        "Unable to export your data. Please try again."
+      );
     } finally {
       setIsExporting(false);
     }
@@ -355,7 +375,11 @@ export default function SettingsScreen() {
                 >
                   {formatTime(reminderTime)}
                 </ThemedText>
-                <Feather name="chevron-right" size={20} color={theme.textMuted} />
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={theme.textMuted}
+                />
               </View>
             </Pressable>
           </Card>
@@ -510,36 +534,41 @@ export default function SettingsScreen() {
           </ThemedText>
 
           <Card elevation={1} style={styles.settingsCard}>
-            {customCategories.length > 0 ? (
-              customCategories.map((cat, index) => (
-                <View key={cat.id}>
-                  {index > 0 ? <View style={styles.divider} /> : null}
-                  <View style={styles.settingRow}>
-                    <View style={styles.settingInfo}>
-                      <Feather name="tag" size={20} color={theme.text} />
-                      <ThemedText type="body" style={styles.settingLabel}>
-                        {cat.name}
-                      </ThemedText>
+            {customCategories.length > 0
+              ? customCategories.map((cat, index) => (
+                  <View key={cat.id}>
+                    {index > 0 ? <View style={styles.divider} /> : null}
+                    <View style={styles.settingRow}>
+                      <View style={styles.settingInfo}>
+                        <Feather name="tag" size={20} color={theme.text} />
+                        <ThemedText type="body" style={styles.settingLabel}>
+                          {cat.name}
+                        </ThemedText>
+                      </View>
+                      <Pressable
+                        onPress={() => handleDeleteCategory(cat)}
+                        hitSlop={8}
+                      >
+                        <Feather name="x" size={20} color={theme.textMuted} />
+                      </Pressable>
                     </View>
-                    <Pressable
-                      onPress={() => handleDeleteCategory(cat)}
-                      hitSlop={8}
-                    >
-                      <Feather name="x" size={20} color={theme.textMuted} />
-                    </Pressable>
                   </View>
-                </View>
-              ))
-            ) : null}
+                ))
+              : null}
 
             {showCategoryInput ? (
               <View>
-                {customCategories.length > 0 ? <View style={styles.divider} /> : null}
+                {customCategories.length > 0 ? (
+                  <View style={styles.divider} />
+                ) : null}
                 <View style={styles.categoryInputRow}>
                   <TextInput
                     style={[
                       styles.categoryInput,
-                      { color: theme.text, backgroundColor: theme.backgroundDefault },
+                      {
+                        color: theme.text,
+                        backgroundColor: theme.backgroundDefault,
+                      },
                     ]}
                     value={newCategoryName}
                     onChangeText={setNewCategoryName}
@@ -549,13 +578,19 @@ export default function SettingsScreen() {
                     onSubmitEditing={handleAddCategory}
                   />
                   <Pressable
-                    style={[styles.addCategoryBtn, { backgroundColor: theme.accent }]}
+                    style={[
+                      styles.addCategoryBtn,
+                      { backgroundColor: theme.accent },
+                    ]}
                     onPress={handleAddCategory}
                   >
                     <Feather name="check" size={18} color="#fff" />
                   </Pressable>
                   <Pressable
-                    style={[styles.addCategoryBtn, { backgroundColor: theme.backgroundDefault }]}
+                    style={[
+                      styles.addCategoryBtn,
+                      { backgroundColor: theme.backgroundDefault },
+                    ]}
                     onPress={() => {
                       setShowCategoryInput(false);
                       setNewCategoryName("");
@@ -567,20 +602,52 @@ export default function SettingsScreen() {
               </View>
             ) : (
               <View>
-                {customCategories.length > 0 ? <View style={styles.divider} /> : null}
+                {customCategories.length > 0 ? (
+                  <View style={styles.divider} />
+                ) : null}
                 <Pressable
                   style={styles.settingRow}
                   onPress={() => setShowCategoryInput(true)}
                 >
                   <View style={styles.settingInfo}>
                     <Feather name="plus" size={20} color={theme.accent} />
-                    <ThemedText type="body" style={[styles.settingLabel, { color: theme.accent }]}>
+                    <ThemedText
+                      type="body"
+                      style={[styles.settingLabel, { color: theme.accent }]}
+                    >
                       Add custom category
                     </ThemedText>
                   </View>
                 </Pressable>
               </View>
             )}
+          </Card>
+        </View>
+
+        <View style={styles.section}>
+          <ThemedText type="small" secondary style={styles.sectionTitle}>
+            Recurring Spending
+          </ThemedText>
+
+          <Card
+            elevation={1}
+            style={styles.settingsCard}
+            onPress={() => navigation.navigate("RecurringSpending")}
+          >
+            <View style={styles.settingRow}>
+              <View style={styles.settingInfo}>
+                <Feather name="repeat" size={20} color={theme.text} />
+                <View>
+                  <ThemedText type="body" style={styles.settingLabel}>
+                    Manage recurring items
+                  </ThemedText>
+                  <ThemedText type="caption" muted>
+                    Subscriptions and regular expenses
+                  </ThemedText>
+                </View>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.textMuted} />
+            </View>
           </Card>
         </View>
 
@@ -612,7 +679,11 @@ export default function SettingsScreen() {
                 <ThemedText type="body" style={{ color: theme.accent }}>
                   {getPlanDisplayName()}
                 </ThemedText>
-                <Feather name="chevron-right" size={20} color={theme.textMuted} />
+                <Feather
+                  name="chevron-right"
+                  size={20}
+                  color={theme.textMuted}
+                />
               </View>
             </View>
           </Card>
