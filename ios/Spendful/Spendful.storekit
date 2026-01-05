@@ -1,0 +1,121 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "8F1469D9",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : true,
+      "internalID" : "6757399679",
+      "localizations" : [
+        {
+          "description" : "Full access to spending history and data export.",
+          "displayName" : "Spendful Premium (Lifetime)",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.thinktankllc.spendful.premium.lifetime",
+      "referenceName" : "Spendful Premium Lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6757114071",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "2W6Z4ZHM6J",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 789334343.27610898,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21879655",
+      "localizations" : [
+
+      ],
+      "name" : "Spendful Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "0.99",
+          "familyShareable" : true,
+          "groupNumber" : 1,
+          "internalID" : "6757399138",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full access to spending history and data export.",
+              "displayName" : "Spendful Premium (Monthly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.spendful.app.premium.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Spendful Premium Monthly",
+          "subscriptionGroupID" : "21879655",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "8.99",
+          "familyShareable" : true,
+          "groupNumber" : 2,
+          "internalID" : "6757399205",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Full access to spending history and data export.",
+              "displayName" : "Spendful Premium (Yearly)",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.spendful.app.premium.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Spendful Premium Yearly",
+          "subscriptionGroupID" : "21879655",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

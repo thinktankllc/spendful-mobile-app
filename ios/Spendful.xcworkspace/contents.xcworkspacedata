@@ -5,6 +5,9 @@
       location = "group:Spendful.xcodeproj">
    </FileRef>
    <FileRef
+      location = "group:Spendful/Spendful.storekit">
+   </FileRef>
+   <FileRef
       location = "group:Pods/Pods.xcodeproj">
    </FileRef>
 </Workspace>

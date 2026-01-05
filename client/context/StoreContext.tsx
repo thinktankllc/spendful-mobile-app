@@ -1,55 +1,121 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import * as RNIap from "react-native-iap";
 
-const productIds = [
+import {
+  initConnection,
+  endConnection,
+  fetchProducts,
+  requestPurchase,
+  finishTransaction,
+  getAvailablePurchases,
+  purchaseUpdatedListener,
+  purchaseErrorListener,
+} from "react-native-iap";
+
+const SKU_SUBS = [
   "com.spendful.app.premium.monthly",
   "com.spendful.app.premium.yearly",
-  "com.spendful.app.premium.lifetime",
 ];
+const SKU_LIFETIME = "com.thinktankllc.spendful.premium.lifetime";
 
 type StoreContextType = {
-  products: RNIap.Product[];
+  products: any[];
   isPremium: boolean;
-  purchase: (productId: string) => Promise<void>;
+  loading: boolean;
+  purchase: (sku: string) => Promise<void>;
   restore: () => Promise<void>;
 };
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
 export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
-  const [products, setProducts] = useState<RNIap.Product[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [isPremium, setIsPremium] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    init();
+    let updateSub: any;
+    let errorSub: any;
+
+    const initIAP = async () => {
+      try {
+        setLoading(true);
+
+        // 1. Open connection
+        await initConnection();
+
+        // 2. Fetch all products including subs & lifetime
+        const subs = await fetchProducts({
+          skus: [...SKU_SUBS],
+          type: "subs",
+        });
+        const lifetime = await fetchProducts({
+          skus: [SKU_LIFETIME],
+          type: "in-app",
+        });
+
+        setProducts([...subs, ...lifetime]);
+
+        // 3. Check existing purchases (restore state if exists)
+        await checkPremiumState();
+
+        // 4. Listen for purchase events
+        updateSub = purchaseUpdatedListener(async (purchase: any) => {
+          try {
+            // Finish the transaction
+            await finishTransaction({
+              purchase,
+              isConsumable: false,
+            });
+          } catch (e) {
+            console.warn("finishTransaction error:", e);
+          }
+
+          // Check or update premium
+          await checkPremiumState();
+        });
+
+        errorSub = purchaseErrorListener((error: any) => {
+          console.warn("Purchase error:", error);
+        });
+      } catch (e) {
+        console.error("IAP init error:", e);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initIAP();
+
+    return () => {
+      updateSub?.remove();
+      errorSub?.remove();
+      endConnection();
+    };
   }, []);
 
-  const init = async () => {
-    await RNIap.initConnection();
-    const items = await RNIap.getProducts({ skus: productIds });
-    setProducts(items);
-    await checkEntitlements();
+  // Check entitlements
+  const checkPremiumState = async () => {
+    try {
+      const purchases: any[] = await getAvailablePurchases();
+      const hasPremium = purchases.some((p) => p.productId.includes("premium"));
+      setIsPremium(hasPremium);
+    } catch (e) {
+      console.warn("restore check error:", e);
+    }
   };
 
-  const purchase = async (productId: string) => {
-    await RNIap.requestPurchase({ sku: productId });
-    await checkEntitlements();
+  const purchase = async (sku: string) => {
+    await requestPurchase(sku);
   };
 
   const restore = async () => {
-    await checkEntitlements();
-  };
-
-  const checkEntitlements = async () => {
-    const purchases = await RNIap.getAvailablePurchases();
-
-    const hasPremium = purchases.some((p) => p.productId.includes("premium"));
-
-    setIsPremium(hasPremium);
+    await checkPremiumState();
   };
 
   return (
-    <StoreContext.Provider value={{ products, isPremium, purchase, restore }}>
+    <StoreContext.Provider
+      value={{ products, isPremium, loading, purchase, restore }}
+    >
       {children}
     </StoreContext.Provider>
   );

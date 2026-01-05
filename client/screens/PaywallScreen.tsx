@@ -1,250 +1,268 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Pressable,
   ScrollView,
+  StyleSheet,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
-import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Button } from "@/components/Button";
-import { Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
-import { RootStackParamList } from "@/navigation/RootStackNavigator";
 import { useStore } from "@/context/StoreContext";
+import { BorderRadius, Spacing } from "@/constants/theme";
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-type PlanType = "monthly" | "yearly" | "lifetime";
+type Plan = "monthly" | "yearly" | "lifetime";
 
 export default function PaywallScreen() {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-  const { products, purchase, restore } = useStore();
+  const { products, loading: productsLoading, purchase, restore } = useStore();
 
-  const [selectedPlan, setSelectedPlan] = useState<PlanType>("yearly");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan>("yearly");
+  const [purchaseInProgress, setPurchaseInProgress] = useState(false);
+  const [restoreInProgress, setRestoreInProgress] = useState(false);
 
-  const monthly = products.find((p) => p.productId.includes("monthly"));
-  const yearly = products.find((p) => p.productId.includes("yearly"));
-  const lifetime = products.find((p) => p.productId.includes("lifetime"));
+  // Map products by plan
+  const productMap = useMemo(() => {
+    return {
+      monthly: products.find((p) => p.id.includes(".monthly")),
+      yearly: products.find((p) => p.id.includes(".yearly")),
+      lifetime: products.find((p) => p.id.includes("lifetime")),
+    };
+  }, [products]);
 
-  const handleSelectPlan = (plan: PlanType) => {
+  const handleSelect = (plan: Plan) => {
+    if (productsLoading || purchaseInProgress || restoreInProgress) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedPlan(plan);
   };
 
-  const handleSubscribe = async () => {
+  const handlePurchase = async () => {
+    const product = productMap[selectedPlan];
+    if (!product || productsLoading) return;
+
     try {
-      setIsProcessing(true);
+      setPurchaseInProgress(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      const product =
-        selectedPlan === "monthly"
-          ? monthly
-          : selectedPlan === "yearly"
-            ? yearly
-            : lifetime;
-
-      if (!product) {
-        Alert.alert("Unavailable", "This purchase option is not available.");
-        return;
-      }
-
-      await purchase(product.productId);
-      navigation.goBack();
-    } catch (error) {
-      console.error("Purchase error:", error);
-      Alert.alert("Purchase Failed", "Please try again later.");
+      await purchase(product.id);
+      Alert.alert("Purchase success!", "Thank you for upgrading.");
+    } catch (err: any) {
+      console.error("Purchase error:", err);
+      Alert.alert("Purchase failed", err?.message ?? "Unknown error");
     } finally {
-      setIsProcessing(false);
+      setPurchaseInProgress(false);
     }
   };
 
-  const handleRestorePurchases = async () => {
+  const handleRestore = async () => {
     try {
-      setIsRestoring(true);
+      setRestoreInProgress(true);
       await restore();
       Alert.alert("Restored", "Your purchases have been restored.");
-    } catch (error) {
-      console.error("Restore error:", error);
-      Alert.alert("Restore Failed", "No purchases were found.");
+    } catch (err: any) {
+      console.error("Restore error:", err);
+      Alert.alert("Restore failed", err?.message ?? "Unknown error");
     } finally {
-      setIsRestoring(false);
+      setRestoreInProgress(false);
     }
   };
 
-  const handleDismiss = () => navigation.goBack();
+  const renderOption = (plan: Plan, label: string, badge?: string) => {
+    const product = productMap[plan];
+    const selected = selectedPlan === plan;
+    const disabled = productsLoading || purchaseInProgress || restoreInProgress;
 
-  const pricingOptions = [
-    {
-      type: "monthly" as PlanType,
-      price: monthly?.localizedPrice ?? "--",
-      period: "/month",
-      description: "Cancel anytime",
-    },
-    {
-      type: "yearly" as PlanType,
-      price: yearly?.localizedPrice ?? "--",
-      period: "/year",
-      description: "Best value",
-      recommended: true,
-    },
-    {
-      type: "lifetime" as PlanType,
-      price: lifetime?.localizedPrice ?? "--",
-      period: "",
-      description: "One-time purchase",
-    },
-  ];
+    return (
+      <Pressable
+        onPress={() => handleSelect(plan)}
+        disabled={disabled}
+        style={[
+          styles.card,
+          {
+            borderColor: selected ? theme.accent : theme.border,
+            backgroundColor: selected
+              ? theme.accentLight
+              : theme.backgroundSecondary,
+            opacity: disabled ? 0.5 : 1,
+          },
+        ]}
+      >
+        {badge && (
+          <View style={[styles.badge, { backgroundColor: theme.accent }]}>
+            <ThemedText type="caption" style={{ color: theme.buttonText }}>
+              {badge}
+            </ThemedText>
+          </View>
+        )}
+
+        <View style={{ flex: 1 }}>
+          <ThemedText type="h3">
+            {productsLoading ? (
+              <ActivityIndicator size="small" color={theme.accent} />
+            ) : product ? (
+              product.displayPrice
+            ) : (
+              "--"
+            )}
+          </ThemedText>
+          <ThemedText type="caption" muted>
+            {label}
+          </ThemedText>
+        </View>
+
+        <View
+          style={[
+            styles.radio,
+            {
+              borderColor: selected ? theme.accent : theme.border,
+              backgroundColor: selected ? theme.accent : "transparent",
+            },
+          ]}
+        />
+      </Pressable>
+    );
+  };
+
+  const isButtonDisabled =
+    productsLoading || purchaseInProgress || restoreInProgress;
 
   return (
     <ThemedView style={styles.container}>
-      <ScrollView style={styles.content}>
-        <View
-          style={{ paddingTop: Spacing["5xl"], paddingBottom: insets.bottom }}
-        >
-          <View style={styles.header}>
-            <View
-              style={[
-                styles.iconContainer,
-                { backgroundColor: theme.accentLight },
-              ]}
-            >
-              <Feather name="unlock" size={40} color={theme.accent} />
-            </View>
-
-            <ThemedText type="h2" style={styles.title}>
-              Keep your full picture
-            </ThemedText>
-
-            <ThemedText type="body" secondary style={styles.subtitle}>
-              Unlock long-term awareness and see your complete spending journey
-            </ThemedText>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.header}>
+          <View style={[styles.icon, { backgroundColor: theme.accentLight }]}>
+            <Feather name="unlock" size={36} color={theme.accent} />
           </View>
 
-          <View style={styles.pricingOptions}>
-            {pricingOptions.map((option) => (
-              <Pressable
-                key={option.type}
-                onPress={() => handleSelectPlan(option.type)}
-                style={[
-                  styles.pricingCard,
-                  {
-                    backgroundColor:
-                      selectedPlan === option.type
-                        ? theme.accentLight
-                        : theme.backgroundDefault,
-                    borderColor:
-                      selectedPlan === option.type
-                        ? theme.accent
-                        : "transparent",
-                    borderWidth: 2,
-                  },
-                ]}
-              >
-                {option.recommended && (
-                  <View
-                    style={[
-                      styles.recommendedBadge,
-                      { backgroundColor: theme.accent },
-                    ]}
-                  >
-                    <ThemedText
-                      type="caption"
-                      style={{ color: theme.buttonText, fontWeight: "600" }}
-                    >
-                      Best Value
-                    </ThemedText>
-                  </View>
-                )}
-
-                <View style={styles.pricingContent}>
-                  <View style={styles.priceRow}>
-                    <ThemedText type="h3">{option.price}</ThemedText>
-                    <ThemedText type="body" secondary>
-                      {option.period}
-                    </ThemedText>
-                  </View>
-                  <ThemedText type="caption" muted>
-                    {option.description}
-                  </ThemedText>
-                </View>
-
-                <View
-                  style={[
-                    styles.radioOuter,
-                    {
-                      borderColor:
-                        selectedPlan === option.type
-                          ? theme.accent
-                          : theme.border,
-                    },
-                  ]}
-                >
-                  {selectedPlan === option.type && (
-                    <View
-                      style={[
-                        styles.radioInner,
-                        { backgroundColor: theme.accent },
-                      ]}
-                    />
-                  )}
-                </View>
-              </Pressable>
-            ))}
-          </View>
-
-          <View style={styles.footer}>
-            <Button
-              onPress={handleSubscribe}
-              disabled={isProcessing}
-              style={styles.subscribeButton}
-            >
-              {isProcessing ? (
-                <ActivityIndicator color={theme.buttonText} />
-              ) : (
-                `Continue`
-              )}
-            </Button>
-
-            <View style={styles.secondaryButtons}>
-              <Pressable onPress={handleDismiss} style={styles.notNowButton}>
-                <ThemedText type="body" secondary>
-                  Not now
-                </ThemedText>
-              </Pressable>
-
-              <Pressable
-                onPress={handleRestorePurchases}
-                style={styles.restoreButton}
-                disabled={isRestoring}
-              >
-                {isRestoring ? (
-                  <ActivityIndicator size="small" />
-                ) : (
-                  <ThemedText type="body" secondary>
-                    Restore Purchases
-                  </ThemedText>
-                )}
-              </Pressable>
-            </View>
-
-            <ThemedText type="caption" muted style={styles.termsText}>
-              Subscriptions renew automatically unless canceled in App Store
-              settings.
-            </ThemedText>
-          </View>
+          <ThemedText type="h2">Keep your full picture</ThemedText>
+          <ThemedText type="body" secondary style={styles.subtitle}>
+            Unlock long-term awareness and see your complete spending journey
+          </ThemedText>
         </View>
+
+        <View style={styles.features}>
+          {[
+            "Unlimited history access",
+            "Recurring spending",
+            "Data export & insights",
+          ].map((text) => (
+            <View key={text} style={styles.featureRow}>
+              <Feather name="check-circle" size={18} color={theme.accent} />
+              <ThemedText>{text}</ThemedText>
+            </View>
+          ))}
+        </View>
+
+        {renderOption("monthly", "per month")}
+        {renderOption("yearly", "per year", "Best Value")}
+        {renderOption("lifetime", "one-time purchase")}
+
+        <Button
+          onPress={handlePurchase}
+          disabled={isButtonDisabled}
+          style={styles.cta}
+        >
+          {purchaseInProgress ? (
+            <ActivityIndicator color={theme.buttonText} />
+          ) : (
+            "Continue"
+          )}
+        </Button>
+
+        <View style={styles.footer}>
+          <Pressable onPress={handleRestore} disabled={isButtonDisabled}>
+            {restoreInProgress ? (
+              <ActivityIndicator size="small" />
+            ) : (
+              <ThemedText secondary>Restore Purchases</ThemedText>
+            )}
+          </Pressable>
+        </View>
+
+        <ThemedText type="caption" muted style={styles.legal}>
+          Subscriptions renew automatically unless cancelled in App Store
+          settings.
+        </ThemedText>
       </ScrollView>
     </ThemedView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingHorizontal: Spacing.xl,
+  },
+  content: {
+    paddingBottom: Spacing["3xl"],
+  },
+  header: {
+    alignItems: "center",
+    marginBottom: Spacing["2xl"],
+  },
+  icon: {
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
+  },
+  subtitle: {
+    textAlign: "center",
+    marginTop: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+  },
+  features: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  featureRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    alignItems: "center",
+  },
+  card: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    marginBottom: Spacing.md,
+    position: "relative",
+  },
+  badge: {
+    position: "absolute",
+    top: -10,
+    right: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+  },
+  cta: {
+    marginTop: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+  },
+  footer: {
+    marginTop: Spacing.lg,
+    alignItems: "center",
+  },
+  legal: {
+    marginTop: Spacing.md,
+    textAlign: "center",
+    lineHeight: 16,
+  },
+});
