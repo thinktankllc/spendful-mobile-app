@@ -40,6 +40,14 @@ Linear stack navigation from onboarding to daily prompt:
 4. Monthly Overview (accessible from Daily Prompt)
 5. Paywall (modal for premium features)
 6. Settings (app configuration)
+7. RecurringSpending (list of recurring items, accessible from Settings)
+8. RecurringSpendingForm (add/edit recurring items)
+
+### Theme System
+- **ThemeContext**: Manages theme mode (light/dark/system) with OS theme listening
+- **Theme Modes**: Light, Dark, System (follows OS preference dynamically)
+- **Colors**: Defined in constants/theme.ts with light and dark variants
+- **Usage**: All screens use `useTheme()` hook for theming consistency
 
 ### Data Storage
 - **Local Storage**: AsyncStorage for offline-first data persistence (cross-platform: web, iOS, Android)
