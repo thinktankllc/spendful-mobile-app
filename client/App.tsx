@@ -13,6 +13,7 @@ import RootStackNavigator from "@/navigation/RootStackNavigator";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { initializeNotifications } from "@/lib/notifications";
 import { ThemeProvider, useThemeContext } from "@/context/ThemeContext";
+import { StoreProvider } from "@/context/StoreContext";
 
 function AppContent() {
   const { effectiveColorScheme } = useThemeContext();
@@ -28,7 +29,9 @@ function AppContent() {
           <NavigationContainer>
             <RootStackNavigator />
           </NavigationContainer>
-          <StatusBar style={effectiveColorScheme === "dark" ? "light" : "dark"} />
+          <StatusBar
+            style={effectiveColorScheme === "dark" ? "light" : "dark"}
+          />
         </KeyboardProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
@@ -40,7 +43,9 @@ export default function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <AppContent />
+          <StoreProvider>
+            <AppContent />
+          </StoreProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
