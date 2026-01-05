@@ -1,5 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useColorScheme as useSystemColorScheme } from "react-native";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  ReactNode,
+} from "react";
+import {
+  useColorScheme as useSystemColorScheme,
+  Appearance,
+  ColorSchemeName,
+} from "react-native";
 import { getAppSettings, updateAppSettings, ThemeMode } from "@/lib/database";
 
 interface ThemeContextType {
@@ -16,12 +27,26 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const systemColorScheme = useSystemColorScheme();
   const [themeMode, setThemeModeState] = useState<ThemeMode>("system");
+  const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
+    () => Appearance.getColorScheme()
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadThemePreference();
+  }, []);
+
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      setSystemColorScheme(colorScheme);
+    });
+
+    return () => {
+      if (subscription && typeof subscription.remove === "function") {
+        subscription.remove();
+      }
+    };
   }, []);
 
   const loadThemePreference = async () => {
@@ -35,18 +60,20 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   };
 
-  const setThemeMode = async (mode: ThemeMode) => {
+  const setThemeMode = useCallback(async (mode: ThemeMode) => {
     try {
-      await updateAppSettings({ theme_mode: mode });
       setThemeModeState(mode);
+      await updateAppSettings({ theme_mode: mode });
     } catch (error) {
       console.error("Error saving theme preference:", error);
     }
-  };
+  }, []);
 
-  const effectiveColorScheme: "light" | "dark" = 
-    themeMode === "system" 
-      ? (systemColorScheme ?? "light") 
+  const effectiveColorScheme: "light" | "dark" =
+    themeMode === "system"
+      ? systemColorScheme === "dark"
+        ? "dark"
+        : "light"
       : themeMode;
 
   return (

@@ -8,6 +8,9 @@ import WeeklySummaryScreen from "@/screens/WeeklySummaryScreen";
 import MonthlyOverviewScreen from "@/screens/MonthlyOverviewScreen";
 import PaywallScreen from "@/screens/PaywallScreen";
 import SettingsScreen from "@/screens/SettingsScreen";
+import RecurringSpendingListScreen from "@/screens/RecurringSpendingListScreen";
+import RecurringSpendingFormScreen from "@/screens/RecurringSpendingFormScreen";
+
 import { useTheme } from "@/hooks/useTheme";
 import { Colors } from "@/constants/theme";
 
@@ -18,6 +21,8 @@ export type RootStackParamList = {
   MonthlyOverview: { month?: string };
   Paywall: undefined;
   Settings: undefined;
+  RecurringSpending: undefined;
+  RecurringSpendingForm: { entryId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -74,6 +79,22 @@ export default function RootStackNavigator() {
               ? Colors.dark.backgroundTertiary
               : Colors.light.backgroundDefault,
           },
+        }}
+      />
+      <Stack.Screen
+        name="RecurringSpending"
+        component={RecurringSpendingListScreen}
+        options={{
+          ...opaqueScreenOptions,
+          headerTitle: "Recurring Spending",
+        }}
+      />
+      <Stack.Screen
+        name="RecurringSpendingForm"
+        component={RecurringSpendingFormScreen}
+        options={{
+          ...opaqueScreenOptions,
+          headerTitle: "Recurring",
         }}
       />
     </Stack.Navigator>
