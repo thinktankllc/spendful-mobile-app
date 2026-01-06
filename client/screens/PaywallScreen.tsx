@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import type { ProductType } from "react-native-iap";
 
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
@@ -18,6 +19,12 @@ import { useStore } from "@/context/StoreContext";
 import { BorderRadius, Spacing } from "@/constants/theme";
 
 type Plan = "monthly" | "yearly" | "lifetime";
+
+const PLAN_TYPES: Record<Plan, ProductType> = {
+  monthly: "subs",
+  yearly: "subs",
+  lifetime: "in-app",
+};
 
 export default function PaywallScreen() {
   const { theme } = useTheme();
@@ -50,7 +57,9 @@ export default function PaywallScreen() {
       setPurchaseInProgress(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      await purchase(product.id);
+      const productType = PLAN_TYPES[selectedPlan];
+      await purchase(product.id, productType);
+
       Alert.alert("Purchase success!", "Thank you for upgrading.");
     } catch (err: any) {
       console.error("Purchase error:", err);

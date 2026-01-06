@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 
 import {
   initConnection,
@@ -9,6 +10,8 @@ import {
   getAvailablePurchases,
   purchaseUpdatedListener,
   purchaseErrorListener,
+  type ProductOrSubscription,
+  type ProductType,
 } from "react-native-iap";
 
 const SKU_SUBS = [
@@ -18,17 +21,17 @@ const SKU_SUBS = [
 const SKU_LIFETIME = "com.thinktankllc.spendful.premium.lifetime";
 
 type StoreContextType = {
-  products: any[];
+  products: ProductOrSubscription[];
   isPremium: boolean;
   loading: boolean;
-  purchase: (sku: string) => Promise<void>;
+  purchase: (sku: string, type: ProductType) => Promise<void>;
   restore: () => Promise<void>;
 };
 
 const StoreContext = createContext<StoreContextType | null>(null);
 
 export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<ProductOrSubscription[]>([]);
   const [isPremium, setIsPremium] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +56,11 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
           type: "in-app",
         });
 
-        setProducts([...subs, ...lifetime]);
+        const allProducts: ProductOrSubscription[] = [
+          ...(subs ?? []),
+          ...(lifetime ?? []),
+        ];
+        setProducts(allProducts);
 
         // 3. Check existing purchases (restore state if exists)
         await checkPremiumState();
@@ -104,8 +111,26 @@ export const StoreProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const purchase = async (sku: string) => {
-    await requestPurchase(sku);
+  const purchase = async (sku: string, type: ProductType) => {
+    if (Platform.OS === "ios") {
+      await requestPurchase({
+        request: {
+          apple: {
+            sku,
+          },
+        },
+        type,
+      });
+    } else {
+      await requestPurchase({
+        request: {
+          google: {
+            skus: [sku],
+          },
+        },
+        type,
+      });
+    }
   };
 
   const restore = async () => {
