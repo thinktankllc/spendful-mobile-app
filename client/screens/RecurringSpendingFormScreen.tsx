@@ -6,7 +6,6 @@ import {
   Switch,
   Alert,
   Platform,
-  FlatList,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
@@ -27,11 +26,9 @@ import {
   getRecurringEntries,
   addRecurringEntry,
   updateRecurringEntry,
-  RecurringEntry,
   getAppSettings,
   getAllCategories,
   SUPPORTED_CURRENCIES,
-  getTodayDate,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 

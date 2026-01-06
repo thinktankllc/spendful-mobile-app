@@ -246,7 +246,7 @@ export default function RecurringSpendingListScreen() {
         Add recurring items like subscriptions or regular expenses. They will
         automatically appear in your daily spending.
       </ThemedText>
-      <Button onPress={handleAdd} style={styles.emptyButton}>
+      <Button onPress={handleAdd} style={styles.addRecurringButton}>
         Add Recurring Spending
       </Button>
     </View>
@@ -417,8 +417,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: Spacing.xl,
   },
-  emptyButton: {
-    minWidth: 200,
+  addRecurringButton: {
+    minWidth: 260,
   },
   fabContainer: {
     position: "absolute",
