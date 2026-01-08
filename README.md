@@ -150,6 +150,9 @@ eas build --profile preview --platform all
 
 # Production build (store distribution)
 eas build --profile production --platform all
+
+# Submit latest iOS build to App Store Connect using EAS Submit
+eas submit -p ios
 ```
 
 ### Regenerating Native Folders

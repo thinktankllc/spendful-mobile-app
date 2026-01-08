@@ -759,7 +759,7 @@ export default function SettingsScreen() {
                 </ThemedText>
               </View>
               <ThemedText type="body" secondary>
-                1.0.0
+                1.0.1
               </ThemedText>
             </View>
           </Card>

@@ -64,7 +64,7 @@ export const DEFAULT_CATEGORIES = [
   "Other",
 ] as const;
 
-export type DefaultCategory = typeof DEFAULT_CATEGORIES[number];
+export type DefaultCategory = (typeof DEFAULT_CATEGORIES)[number];
 
 export const SPENDING_CATEGORIES = DEFAULT_CATEGORIES;
 
@@ -145,7 +145,10 @@ async function migrateFromV1(): Promise<void> {
       }
 
       if (newEntries.length > 0) {
-        await AsyncStorage.setItem(STORAGE_KEYS.SPEND_ENTRIES, JSON.stringify(newEntries));
+        await AsyncStorage.setItem(
+          STORAGE_KEYS.SPEND_ENTRIES,
+          JSON.stringify(newEntries)
+        );
       }
     }
     await AsyncStorage.setItem(STORAGE_KEYS.MIGRATED_V2, "true");
@@ -166,7 +169,10 @@ async function getAllEntries(): Promise<SpendEntry[]> {
 }
 
 async function saveAllEntries(entries: SpendEntry[]): Promise<void> {
-  await AsyncStorage.setItem(STORAGE_KEYS.SPEND_ENTRIES, JSON.stringify(entries));
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.SPEND_ENTRIES,
+    JSON.stringify(entries)
+  );
 }
 
 export async function getEntriesForDate(date: string): Promise<SpendEntry[]> {
@@ -196,7 +202,7 @@ export async function addSpendEntry(
 ): Promise<SpendEntry> {
   const entries = await getAllEntries();
   const now = Date.now();
-  
+
   const newEntry: SpendEntry = {
     entry_id: generateUUID(),
     date,
@@ -223,7 +229,7 @@ export async function updateSpendEntry(
 ): Promise<SpendEntry | null> {
   const entries = await getAllEntries();
   const index = entries.findIndex((e) => e.entry_id === entryId);
-  
+
   if (index < 0) return null;
 
   entries[index] = {
@@ -242,7 +248,7 @@ export async function updateSpendEntry(
 export async function deleteSpendEntry(entryId: string): Promise<boolean> {
   const entries = await getAllEntries();
   const filtered = entries.filter((e) => e.entry_id !== entryId);
-  
+
   if (filtered.length === entries.length) return false;
 
   await saveAllEntries(filtered);
@@ -320,7 +326,10 @@ export async function updateAppSettings(
     ...settings,
     updated_at: Date.now(),
   };
-  await AsyncStorage.setItem(STORAGE_KEYS.APP_SETTINGS, JSON.stringify(updated));
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.APP_SETTINGS,
+    JSON.stringify(updated)
+  );
 }
 
 function getDefaultSubscription(): Subscription {
@@ -354,7 +363,10 @@ export async function updateSubscription(
     ...subscription,
     updated_at: Date.now(),
   };
-  await AsyncStorage.setItem(STORAGE_KEYS.SUBSCRIPTION, JSON.stringify(updated));
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.SUBSCRIPTION,
+    JSON.stringify(updated)
+  );
 }
 
 export function getWeekDateRange(): { startDate: string; endDate: string } {
@@ -386,7 +398,11 @@ export function getMonthDateRange(monthOffset: number = 0): {
   month: number;
 } {
   const today = new Date();
-  const targetMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const targetMonth = new Date(
+    today.getFullYear(),
+    today.getMonth() + monthOffset,
+    1
+  );
   const year = targetMonth.getFullYear();
   const month = targetMonth.getMonth();
 
@@ -412,28 +428,32 @@ export function isPremium(subscription: Subscription): boolean {
   if (subscription.plan === "lifetime") {
     return true;
   }
-  
+
   if (subscription.is_active && subscription.plan !== "free") {
     if (subscription.expires_at === null) {
       return true;
     }
     return subscription.expires_at > Date.now();
   }
-  
+
   return false;
 }
 
-export function canViewDate(date: string, subscription: Subscription, freeHistoryDays: number): boolean {
+export function canViewDate(
+  date: string,
+  subscription: Subscription,
+  freeHistoryDays: number
+): boolean {
   if (isPremium(subscription)) {
     return true;
   }
 
   const todayStr = getTodayDate();
-  
+
   if (date === todayStr) {
     return true;
   }
-  
+
   const today = new Date(todayStr + "T00:00:00");
   const targetDate = new Date(date + "T00:00:00");
   const diffTime = today.getTime() - targetDate.getTime();
@@ -446,7 +466,7 @@ export function getFreeHistoryCutoffDate(freeHistoryDays: number): string {
   const today = new Date();
   const cutoffDate = new Date(today);
   cutoffDate.setDate(today.getDate() - freeHistoryDays);
-  
+
   const year = cutoffDate.getFullYear();
   const month = String(cutoffDate.getMonth() + 1).padStart(2, "0");
   const day = String(cutoffDate.getDate()).padStart(2, "0");
@@ -499,11 +519,15 @@ export function calculateSpendingStats(
     .map(([category, total]) => ({ category, total }))
     .sort((a, b) => b.total - a.total);
 
-  const dayAmounts = Object.entries(dayTotals).map(([date, amount]) => ({ date, amount }));
+  const dayAmounts = Object.entries(dayTotals).map(([date, amount]) => ({
+    date,
+    amount,
+  }));
   dayAmounts.sort((a, b) => b.amount - a.amount);
 
   const highestSpendDay = dayAmounts.length > 0 ? dayAmounts[0] : null;
-  const lowestSpendDay = dayAmounts.length > 0 ? dayAmounts[dayAmounts.length - 1] : null;
+  const lowestSpendDay =
+    dayAmounts.length > 0 ? dayAmounts[dayAmounts.length - 1] : null;
 
   return {
     totalSpend,
@@ -517,7 +541,10 @@ export function calculateSpendingStats(
   };
 }
 
-export function formatCurrency(amount: number, currency: string = "USD"): string {
+export function formatCurrency(
+  amount: number,
+  currency: string = "USD"
+): string {
   const symbols: Record<string, string> = {
     USD: "$",
     EUR: "\u20AC",
@@ -559,17 +586,26 @@ export async function addCustomCategory(name: string): Promise<CustomCategory> {
     created_at: Date.now(),
   };
   categories.push(newCategory);
-  await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, JSON.stringify(categories));
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.CUSTOM_CATEGORIES,
+    JSON.stringify(categories)
+  );
   return newCategory;
 }
 
-export async function renameCustomCategory(id: string, newName: string): Promise<boolean> {
+export async function renameCustomCategory(
+  id: string,
+  newName: string
+): Promise<boolean> {
   const categories = await getCustomCategories();
   const index = categories.findIndex((c) => c.id === id);
   if (index < 0) return false;
-  
+
   categories[index].name = newName.trim();
-  await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, JSON.stringify(categories));
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.CUSTOM_CATEGORIES,
+    JSON.stringify(categories)
+  );
   return true;
 }
 
@@ -577,8 +613,11 @@ export async function deleteCustomCategory(id: string): Promise<boolean> {
   const categories = await getCustomCategories();
   const filtered = categories.filter((c) => c.id !== id);
   if (filtered.length === categories.length) return false;
-  
-  await AsyncStorage.setItem(STORAGE_KEYS.CUSTOM_CATEGORIES, JSON.stringify(filtered));
+
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.CUSTOM_CATEGORIES,
+    JSON.stringify(filtered)
+  );
   return true;
 }
 
@@ -624,7 +663,7 @@ export async function addRecurringEntry(
 ): Promise<RecurringEntry> {
   const entries = await getRecurringEntries();
   const now = Date.now();
-  
+
   const newEntry: RecurringEntry = {
     id: generateUUID(),
     amount,
@@ -639,9 +678,12 @@ export async function addRecurringEntry(
     created_at: now,
     updated_at: now,
   };
-  
+
   entries.push(newEntry);
-  await AsyncStorage.setItem(STORAGE_KEYS.RECURRING_ENTRIES, JSON.stringify(entries));
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.RECURRING_ENTRIES,
+    JSON.stringify(entries)
+  );
   return newEntry;
 }
 
@@ -651,16 +693,19 @@ export async function updateRecurringEntry(
 ): Promise<RecurringEntry | null> {
   const entries = await getRecurringEntries();
   const index = entries.findIndex((e) => e.id === id);
-  
+
   if (index < 0) return null;
-  
+
   entries[index] = {
     ...entries[index],
     ...updates,
     updated_at: Date.now(),
   };
-  
-  await AsyncStorage.setItem(STORAGE_KEYS.RECURRING_ENTRIES, JSON.stringify(entries));
+
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.RECURRING_ENTRIES,
+    JSON.stringify(entries)
+  );
   return entries[index];
 }
 
@@ -668,8 +713,11 @@ export async function deleteRecurringEntry(id: string): Promise<boolean> {
   const entries = await getRecurringEntries();
   const filtered = entries.filter((e) => e.id !== id);
   if (filtered.length === entries.length) return false;
-  
-  await AsyncStorage.setItem(STORAGE_KEYS.RECURRING_ENTRIES, JSON.stringify(filtered));
+
+  await AsyncStorage.setItem(
+    STORAGE_KEYS.RECURRING_ENTRIES,
+    JSON.stringify(filtered)
+  );
   return true;
 }
 
@@ -678,7 +726,7 @@ function getNextOccurrenceDate(
   frequency: "weekly" | "biweekly" | "monthly"
 ): string {
   const date = new Date(lastDate + "T00:00:00");
-  
+
   switch (frequency) {
     case "weekly":
       date.setDate(date.getDate() + 7);
@@ -690,7 +738,7 @@ function getNextOccurrenceDate(
       date.setMonth(date.getMonth() + 1);
       break;
   }
-  
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -701,27 +749,30 @@ const LAST_RECURRING_CHECK_KEY = "spendful_last_recurring_check";
 
 export async function generateRecurringEntriesForToday(): Promise<number> {
   const today = getTodayDate();
-  
+
   const lastCheck = await AsyncStorage.getItem(LAST_RECURRING_CHECK_KEY);
   if (lastCheck === today) {
     return 0;
   }
-  
+
   const recurringEntries = await getRecurringEntries();
   let generated = 0;
-  
+
   for (const recurring of recurringEntries) {
     if (!recurring.is_active) continue;
     if (recurring.end_date && recurring.end_date < today) continue;
     if (recurring.start_date > today) continue;
-    
-    let nextDate = recurring.last_generated_date 
-      ? getNextOccurrenceDate(recurring.last_generated_date, recurring.frequency)
+
+    let nextDate = recurring.last_generated_date
+      ? getNextOccurrenceDate(
+          recurring.last_generated_date,
+          recurring.frequency
+        )
       : recurring.start_date;
-    
+
     while (nextDate <= today) {
       if (recurring.end_date && nextDate > recurring.end_date) break;
-      
+
       await addSpendEntry(
         nextDate,
         recurring.amount,
@@ -729,16 +780,18 @@ export async function generateRecurringEntriesForToday(): Promise<number> {
         recurring.note ? `[Recurring] ${recurring.note}` : "[Recurring]",
         recurring.currency
       );
-      
-      await updateRecurringEntry(recurring.id, { last_generated_date: nextDate });
+
+      await updateRecurringEntry(recurring.id, {
+        last_generated_date: nextDate,
+      });
       generated++;
-      
+
       nextDate = getNextOccurrenceDate(nextDate, recurring.frequency);
     }
   }
-  
+
   await AsyncStorage.setItem(LAST_RECURRING_CHECK_KEY, today);
-  
+
   return generated;
 }
 
@@ -756,10 +809,10 @@ export async function exportAllData(): Promise<ExportData> {
     getAppSettings(),
     getCustomCategories(),
   ]);
-  
+
   return {
     exportedAt: new Date().toISOString(),
-    version: "1.0.0",
+    version: "1.0.1",
     entries: entries.sort((a, b) => b.date.localeCompare(a.date)),
     settings,
     customCategories,
@@ -767,12 +820,19 @@ export async function exportAllData(): Promise<ExportData> {
 }
 
 export function convertToCSV(entries: SpendEntry[]): string {
-  const headers = ["Date", "Amount", "Currency", "Category", "Note", "Created At"];
-  
+  const headers = [
+    "Date",
+    "Amount",
+    "Currency",
+    "Category",
+    "Note",
+    "Created At",
+  ];
+
   const escapeCSVField = (value: string): string => {
     return value.replace(/"/g, '""');
   };
-  
+
   const rows = entries.map((e) => [
     escapeCSVField(e.date),
     escapeCSVField(e.amount.toString()),
@@ -781,11 +841,11 @@ export function convertToCSV(entries: SpendEntry[]): string {
     escapeCSVField(e.note || ""),
     escapeCSVField(new Date(e.created_at).toISOString()),
   ]);
-  
+
   const csvContent = [
     headers.join(","),
     ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
   ].join("\n");
-  
+
   return csvContent;
 }

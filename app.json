@@ -2,7 +2,7 @@
   "expo": {
     "name": "Spendful",
     "slug": "spendful",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "spendful",
@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.spendful.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
