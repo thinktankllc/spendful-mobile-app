@@ -13,8 +13,7 @@
       "bundleIdentifier": "com.spendful.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "buildNumber": "2"
+      }
     },
     "android": {
       "adaptiveIcon": {
