@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -483,7 +483,7 @@ export default function DailyPromptScreen() {
           <>
             <Card style={styles.totalCard}>
               <ThemedText type="small" secondary>
-                {isToday ? "Today's spending" : "Day total"}
+                {isToday ? "Today’s spending" : "Day total"}
               </ThemedText>
               <ThemedText type="h1" style={styles.totalAmount}>
                 {formatCurrency(dayData.totalAmount, defaultCurrency)}

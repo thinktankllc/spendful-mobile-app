@@ -1,15 +1,15 @@
-import React, { useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
-  View,
-  StyleSheet,
-  FlatList,
-  Pressable,
   Alert,
-  Platform,
+  FlatList,
   Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -18,14 +18,14 @@ import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  getRecurringEntries,
-  updateRecurringEntry,
   deleteRecurringEntry,
-  RecurringEntry,
   formatCurrency,
+  getRecurringEntries,
+  RecurringEntry,
+  updateRecurringEntry,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -46,7 +46,7 @@ export default function RecurringSpendingListScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<RecurringEntry | null>(
-    null
+    null,
   );
 
   const loadEntries = useCallback(async () => {
@@ -63,7 +63,7 @@ export default function RecurringSpendingListScreen() {
   useFocusEffect(
     useCallback(() => {
       loadEntries();
-    }, [loadEntries])
+    }, [loadEntries]),
   );
 
   const handleToggleActive = async (entry: RecurringEntry) => {
@@ -113,7 +113,7 @@ export default function RecurringSpendingListScreen() {
               }
             },
           },
-        ]
+        ],
       );
     }
   };
