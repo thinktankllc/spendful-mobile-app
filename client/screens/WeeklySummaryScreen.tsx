@@ -1,5 +1,11 @@
-import React, { useState, useCallback } from "react";
-import { View, StyleSheet, ScrollView, ActivityIndicator, Pressable } from "react-native";
+import React, { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
@@ -8,17 +14,17 @@ import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  getEntriesForDateRange,
-  getWeekDateRange,
-  getSubscription,
-  getAppSettings,
-  canViewDate,
-  isPremium,
   calculateSpendingStats,
+  canViewDate,
   formatCurrency,
+  getAppSettings,
+  getEntriesForDateRange,
+  getSubscription,
+  getWeekDateRange,
+  isPremium,
   SpendEntry,
   SpendingStats,
 } from "@/lib/database";
@@ -86,13 +92,17 @@ export default function WeeklySummaryScreen() {
         const date = new Date(today);
         date.setDate(today.getDate() - dayOfWeek + i);
         const dateStr = date.toISOString().split("T")[0];
-        const isRestricted = !canViewDate(dateStr, subscription, settings.free_history_days);
-        
+        const isRestricted = !canViewDate(
+          dateStr,
+          subscription,
+          settings.free_history_days,
+        );
+
         if (isRestricted) {
           anyRestricted = true;
         }
 
-        const dayEntries = isRestricted ? [] : (entriesByDate.get(dateStr) || []);
+        const dayEntries = isRestricted ? [] : entriesByDate.get(dateStr) || [];
         const totalAmount = dayEntries.reduce((sum, e) => sum + e.amount, 0);
 
         weekDays.push({
@@ -109,8 +119,8 @@ export default function WeeklySummaryScreen() {
 
       setHasRestrictedDays(anyRestricted);
 
-      const accessibleEntries = entries.filter(
-        (entry) => canViewDate(entry.date, subscription, settings.free_history_days)
+      const accessibleEntries = entries.filter((entry) =>
+        canViewDate(entry.date, subscription, settings.free_history_days),
       );
 
       const calculatedStats = calculateSpendingStats(accessibleEntries, 7);
@@ -126,7 +136,7 @@ export default function WeeklySummaryScreen() {
   useFocusEffect(
     useCallback(() => {
       loadWeekData();
-    }, [loadWeekData])
+    }, [loadWeekData]),
   );
 
   const getDotColor = (day: DaySummary) => {
@@ -168,10 +178,13 @@ export default function WeeklySummaryScreen() {
       >
         <Animated.View entering={FadeIn.duration(300)}>
           <View style={styles.weekGrid}>
-            {weekData.map((day, index) => (
+            {weekData.map((day) => (
               <Pressable
                 key={day.date}
-                style={[styles.dayColumn, day.isRestricted && styles.restrictedDay]}
+                style={[
+                  styles.dayColumn,
+                  day.isRestricted && styles.restrictedDay,
+                ]}
                 onPress={() => handleDayPress(day)}
               >
                 <ThemedText
@@ -209,14 +222,25 @@ export default function WeeklySummaryScreen() {
                   </ThemedText>
                 ) : null}
                 {day.isRestricted ? (
-                  <Feather name="lock" size={10} color={theme.textMuted} style={styles.lockIcon} />
+                  <Feather
+                    name="lock"
+                    size={10}
+                    color={theme.textMuted}
+                    style={styles.lockIcon}
+                  />
                 ) : null}
               </Pressable>
             ))}
           </View>
 
           {hasRestrictedDays && !userIsPremium ? (
-            <Pressable onPress={handleUpgradePress} style={[styles.upgradeBanner, { backgroundColor: theme.accentLight }]}>
+            <Pressable
+              onPress={handleUpgradePress}
+              style={[
+                styles.upgradeBanner,
+                { backgroundColor: theme.accentLight },
+              ]}
+            >
               <Feather name="unlock" size={18} color={theme.accent} />
               <View style={styles.upgradeBannerText}>
                 <ThemedText type="body" style={{ color: theme.accent }}>
@@ -230,21 +254,21 @@ export default function WeeklySummaryScreen() {
             </Pressable>
           ) : null}
 
-          <Animated.View entering={FadeInDown.duration(300).delay(100)}>
-            <Card elevation={1} style={styles.totalCard}>
-              <ThemedText type="small" secondary>
-                Total spent this week
+          <Card elevation={1} style={styles.totalCard}>
+            <ThemedText type="small" secondary>
+              Total spent this week
+            </ThemedText>
+            <ThemedText type="h1" style={styles.totalValue}>
+              {formatCurrency(stats.totalSpend)}
+            </ThemedText>
+            {stats.totalEntries > 0 ? (
+              <ThemedText type="small" secondary style={styles.subStats}>
+                {stats.totalEntries}{" "}
+                {stats.totalEntries === 1 ? "entry" : "entries"} across{" "}
+                {stats.spendDays} {stats.spendDays === 1 ? "day" : "days"}
               </ThemedText>
-              <ThemedText type="h1" style={styles.totalValue}>
-                {formatCurrency(stats.totalSpend)}
-              </ThemedText>
-              {stats.totalEntries > 0 ? (
-                <ThemedText type="small" secondary style={styles.subStats}>
-                  {stats.totalEntries} {stats.totalEntries === 1 ? "entry" : "entries"} across {stats.spendDays} {stats.spendDays === 1 ? "day" : "days"}
-                </ThemedText>
-              ) : null}
-            </Card>
-          </Animated.View>
+            ) : null}
+          </Card>
 
           <View style={styles.statsGrid}>
             <Card elevation={1} style={styles.statCard}>
@@ -267,7 +291,9 @@ export default function WeeklySummaryScreen() {
 
             <Card elevation={1} style={styles.statCard}>
               <ThemedText type="body" style={styles.statValue}>
-                {stats.spendDays > 0 ? formatCurrency(stats.averageSpendPerSpendDay) : "-"}
+                {stats.spendDays > 0
+                  ? formatCurrency(stats.averageSpendPerSpendDay)
+                  : "-"}
               </ThemedText>
               <ThemedText type="small" secondary>
                 Avg/day
@@ -281,16 +307,26 @@ export default function WeeklySummaryScreen() {
                 <ThemedText type="h4" style={styles.categoriesTitle}>
                   Top Categories
                 </ThemedText>
-                {stats.topCategories.slice(0, 2).map((cat, index) => (
+                {stats.topCategories.slice(0, 2).map((cat) => (
                   <View key={cat.category} style={styles.categoryRow}>
                     <View style={styles.categoryInfo}>
-                      <View style={[styles.categoryBadge, { backgroundColor: theme.accentLight }]}>
-                        <ThemedText type="small" style={{ color: theme.accent }}>
+                      <View
+                        style={[
+                          styles.categoryBadge,
+                          { backgroundColor: theme.accentLight },
+                        ]}
+                      >
+                        <ThemedText
+                          type="small"
+                          style={{ color: theme.accent }}
+                        >
                           {cat.category}
                         </ThemedText>
                       </View>
                     </View>
-                    <ThemedText type="body">{formatCurrency(cat.total)}</ThemedText>
+                    <ThemedText type="body">
+                      {formatCurrency(cat.total)}
+                    </ThemedText>
                   </View>
                 ))}
               </Card>
