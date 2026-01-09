@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { useScreenOptions } from "@/hooks/useScreenOptions";
+import { getAppSettings } from "@/lib/database";
 
 import OnboardingScreen from "@/screens/OnboardingScreen";
 import DailyPromptScreen from "@/screens/DailyPromptScreen";
@@ -34,9 +35,28 @@ export default function RootStackNavigator() {
   const headerBackgroundColor = isDark
     ? Colors.dark.backgroundTertiary
     : Colors.light.backgroundDefault;
+  const [initialRoute, setInitialRoute] = useState<
+    keyof RootStackParamList | undefined
+  >(undefined);
+
+  useEffect(() => {
+    (async () => {
+      const settings = await getAppSettings();
+      setInitialRoute(
+        settings.onboarding_completed && !settings.show_onboarding_on_launch
+          ? "DailyPrompt"
+          : "Onboarding",
+      );
+    })();
+  }, []);
+
+  if (!initialRoute) return;
 
   return (
-    <Stack.Navigator screenOptions={screenOptions}>
+    <Stack.Navigator
+      screenOptions={screenOptions}
+      initialRouteName={initialRoute}
+    >
       <Stack.Screen
         name="Onboarding"
         component={OnboardingScreen}

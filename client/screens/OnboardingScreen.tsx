@@ -40,21 +40,21 @@ const pages: OnboardingPage[] = [
     id: 2,
     title: "One question, once a day",
     subtitle:
-      "Each day, we'll ask you one thing:\n\"Did you spend money today?\"\n\nThat's it. Nothing more.",
+      'Each day, we’ll ask you one thing:\n"Did you spend money today?"\n\nThat’s it. Nothing more.',
     icon: "help-circle",
   },
   {
     id: 3,
     title: "Awareness, not control",
     subtitle:
-      "This isn't about restricting yourself. It's about noticing patterns and building gentle awareness of your spending habits.",
+      "This isn’t about restricting yourself. It’s about noticing patterns and building gentle awareness of your spending habits.",
     icon: "eye",
   },
   {
     id: 4,
     title: "Set your reminder",
     subtitle:
-      "Choose a time when you'd like to reflect on your day. We'll send you a gentle nudge.",
+      "Choose a time when you’d like to reflect on your day. We’ll send you a gentle nudge.",
     icon: "bell",
   },
 ];
@@ -90,7 +90,6 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<NavigationProp>();
   const { theme } = useTheme();
-
   const [currentPage, setCurrentPage] = useState(0);
   const [reminderTime, setReminderTime] = useState(new Date(2024, 0, 1, 20, 0));
   const [showTimePicker, setShowTimePicker] = useState(false);
