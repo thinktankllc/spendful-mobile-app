@@ -1,5 +1,5 @@
-import React from "react";
-import { StyleSheet, Pressable, ViewStyle } from "react-native";
+import { ReactNode } from "react";
+import { Pressable, StyleSheet, ViewStyle } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,13 +9,13 @@ import Animated, {
 
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 
 interface CardProps {
   elevation?: number;
   title?: string;
   description?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
   onPress?: () => void;
   style?: ViewStyle;
 }

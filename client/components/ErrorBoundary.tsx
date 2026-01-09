@@ -1,4 +1,4 @@
-import React, { Component, ComponentType, PropsWithChildren } from "react";
+import { Component, ComponentType, PropsWithChildren } from "react";
 import { ErrorFallback, ErrorFallbackProps } from "@/components/ErrorFallback";
 
 export type ErrorBoundaryProps = PropsWithChildren<{
@@ -17,13 +17,12 @@ export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
   ErrorBoundaryState
 > {
-  state: ErrorBoundaryState = { error: null };
-
   static defaultProps: {
     FallbackComponent: ComponentType<ErrorFallbackProps>;
   } = {
     FallbackComponent: ErrorFallback,
   };
+  state: ErrorBoundaryState = { error: null };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };

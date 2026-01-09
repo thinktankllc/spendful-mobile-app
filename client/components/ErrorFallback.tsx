@@ -1,18 +1,18 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { reloadAppAsync } from "expo";
 import {
-  StyleSheet,
-  View,
+  Modal,
   Pressable,
   ScrollView,
+  StyleSheet,
   Text,
-  Modal,
+  View,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { ThemedView } from "@/components/ThemedView";
 import { ThemedText } from "@/components/ThemedText";
 import { useTheme } from "@/hooks/useTheme";
-import { Spacing, BorderRadius, Fonts } from "@/constants/theme";
+import { BorderRadius, Fonts, Spacing } from "@/constants/theme";
 
 export type ErrorFallbackProps = {
   error: Error;

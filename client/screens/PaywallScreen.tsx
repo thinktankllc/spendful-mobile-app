@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   content: {
-    paddingBottom: Spacing["3xl"],
+    paddingVertical: Spacing["3xl"],
   },
   header: {
     alignItems: "center",

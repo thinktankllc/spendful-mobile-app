@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -42,7 +42,6 @@ import {
   getTodayDate,
   SpendEntry,
   SUPPORTED_CURRENCIES,
-  updateAppSettings,
   updateSpendEntry,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
@@ -78,24 +77,6 @@ export default function DailyPromptScreen() {
     async (forceRefresh = false) => {
       try {
         const settings = await getAppSettings();
-
-        if (!settings.onboarding_completed) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Onboarding" }],
-          });
-          return;
-        }
-
-        if (settings.show_onboarding_on_launch) {
-          await updateAppSettings({ show_onboarding_on_launch: false });
-          navigation.reset({
-            index: 0,
-            routes: [{ name: "Onboarding" }],
-          });
-          return;
-        }
-
         const effectiveDefaultCurrency = settings.default_currency || "USD";
         setDefaultCurrency(effectiveDefaultCurrency);
 
@@ -502,7 +483,7 @@ export default function DailyPromptScreen() {
           <>
             <Card style={styles.totalCard}>
               <ThemedText type="small" secondary>
-                {isToday ? "Today's spending" : "Day total"}
+                {isToday ? "Today’s spending" : "Day total"}
               </ThemedText>
               <ThemedText type="h1" style={styles.totalAmount}>
                 {formatCurrency(dayData.totalAmount, defaultCurrency)}

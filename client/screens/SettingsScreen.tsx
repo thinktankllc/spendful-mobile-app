@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
-  View,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Switch,
-  Platform,
-  Alert,
-  TextInput,
   ActivityIndicator,
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  TextInput,
+  View,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -21,28 +21,28 @@ import * as FileSystem from "expo-file-system/legacy";
 import { ThemedText } from "@/components/ThemedText";
 import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import { useThemeContext } from "@/context/ThemeContext";
 import {
-  getAppSettings,
-  updateAppSettings,
-  getSubscription,
-  getCustomCategories,
   addCustomCategory,
+  AppSettings,
+  convertToCSV,
+  CustomCategory,
   deleteCustomCategory,
   exportAllData,
-  convertToCSV,
-  AppSettings,
+  getAppSettings,
+  getCustomCategories,
+  getSubscription,
   Subscription,
-  CustomCategory,
   SUPPORTED_CURRENCIES,
   ThemeMode,
+  updateAppSettings,
 } from "@/lib/database";
 import {
-  scheduleNotification,
   cancelAllNotifications,
   requestNotificationPermission,
+  scheduleNotification,
 } from "@/lib/notifications";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -69,7 +69,7 @@ export default function SettingsScreen() {
   const [reminderTime, setReminderTime] = useState(new Date());
   const [showCurrencyPicker, setShowCurrencyPicker] = useState(false);
   const [customCategories, setCustomCategories] = useState<CustomCategory[]>(
-    []
+    [],
   );
   const [showCategoryInput, setShowCategoryInput] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -110,7 +110,7 @@ export default function SettingsScreen() {
         if (!granted) {
           Alert.alert(
             "Permission Required",
-            "Please enable notifications in your device settings."
+            "Please enable notifications in your device settings.",
           );
           return;
         }
@@ -118,13 +118,13 @@ export default function SettingsScreen() {
 
       await updateAppSettings({ notifications_enabled: value });
       setSettings((prev) =>
-        prev ? { ...prev, notifications_enabled: value } : null
+        prev ? { ...prev, notifications_enabled: value } : null,
       );
 
       if (value) {
         await scheduleNotification(
           reminderTime.getHours(),
-          reminderTime.getMinutes()
+          reminderTime.getMinutes(),
         );
       } else {
         await cancelAllNotifications();
@@ -146,13 +146,13 @@ export default function SettingsScreen() {
 
       await updateAppSettings({ daily_reminder_time: timeString });
       setSettings((prev) =>
-        prev ? { ...prev, daily_reminder_time: timeString } : null
+        prev ? { ...prev, daily_reminder_time: timeString } : null,
       );
 
       if (settings?.notifications_enabled) {
         await scheduleNotification(
           selectedDate.getHours(),
-          selectedDate.getMinutes()
+          selectedDate.getMinutes(),
         );
       }
     }
@@ -175,7 +175,7 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await updateAppSettings({ default_currency: currencyCode });
       setSettings((prev) =>
-        prev ? { ...prev, default_currency: currencyCode } : null
+        prev ? { ...prev, default_currency: currencyCode } : null,
       );
       setShowCurrencyPicker(false);
     } catch (error) {
@@ -221,7 +221,7 @@ export default function SettingsScreen() {
         [
           { text: "Cancel", style: "cancel" },
           { text: "Remove", style: "destructive", onPress: doDelete },
-        ]
+        ],
       );
     }
   };
@@ -246,7 +246,7 @@ export default function SettingsScreen() {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       await updateAppSettings({ show_onboarding_on_launch: value });
       setSettings((prev) =>
-        prev ? { ...prev, show_onboarding_on_launch: value } : null
+        prev ? { ...prev, show_onboarding_on_launch: value } : null,
       );
     } catch (error) {
       console.error("Error updating onboarding setting:", error);
@@ -305,7 +305,7 @@ export default function SettingsScreen() {
         } else {
           Alert.alert(
             "Export Complete",
-            `Your data has been saved to ${filename}`
+            `Your data has been saved to ${filename}`,
           );
         }
       }
@@ -313,7 +313,7 @@ export default function SettingsScreen() {
       console.error("Error exporting data:", error);
       Alert.alert(
         "Export Failed",
-        "Unable to export your data. Please try again."
+        "Unable to export your data. Please try again.",
       );
     } finally {
       setIsExporting(false);

@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  View,
-  StyleSheet,
-  Pressable,
-  Switch,
   Alert,
   Platform,
+  Pressable,
+  StyleSheet,
+  Switch,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Feather } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -20,15 +20,15 @@ import { ThemedView } from "@/components/ThemedView";
 import { Card } from "@/components/Card";
 import { Button } from "@/components/Button";
 import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollViewCompat";
-import { Spacing, BorderRadius } from "@/constants/theme";
+import { BorderRadius, Spacing } from "@/constants/theme";
 import { useTheme } from "@/hooks/useTheme";
 import {
-  getRecurringEntries,
   addRecurringEntry,
-  updateRecurringEntry,
-  getAppSettings,
   getAllCategories,
+  getAppSettings,
+  getRecurringEntries,
   SUPPORTED_CURRENCIES,
+  updateRecurringEntry,
 } from "@/lib/database";
 import { RootStackParamList } from "@/navigation/RootStackNavigator";
 
@@ -138,7 +138,7 @@ export default function RecurringSpendingFormScreen() {
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       Alert.alert(
         "Invalid Amount",
-        "Please enter a valid amount greater than 0."
+        "Please enter a valid amount greater than 0.",
       );
       return;
     }
@@ -151,7 +151,7 @@ export default function RecurringSpendingFormScreen() {
       if (startDateNormalized < today) {
         Alert.alert(
           "Invalid Start Date",
-          "Start date cannot be in the past for new entries."
+          "Start date cannot be in the past for new entries.",
         );
         return;
       }
@@ -189,7 +189,7 @@ export default function RecurringSpendingFormScreen() {
           category,
           currency,
           note.trim() || null,
-          endDateStr
+          endDateStr,
         );
       }
 

@@ -1,17 +1,13 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-  ReactNode,
-} from "react";
 import {
-  useColorScheme as useSystemColorScheme,
-  Appearance,
-  ColorSchemeName,
-} from "react-native";
-import { getAppSettings, updateAppSettings, ThemeMode } from "@/lib/database";
+  createContext,
+  ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { Appearance, ColorSchemeName } from "react-native";
+import { getAppSettings, ThemeMode, updateAppSettings } from "@/lib/database";
 
 interface ThemeContextType {
   themeMode: ThemeMode;
@@ -29,7 +25,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [themeMode, setThemeModeState] = useState<ThemeMode>("system");
   const [systemColorScheme, setSystemColorScheme] = useState<ColorSchemeName>(
-    () => Appearance.getColorScheme()
+    () => Appearance.getColorScheme(),
   );
   const [isLoading, setIsLoading] = useState(true);
 
