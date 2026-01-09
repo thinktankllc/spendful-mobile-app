@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
   },
   content: {
-    paddingBottom: Spacing["3xl"],
+    paddingVertical: Spacing["3xl"],
   },
   header: {
     alignItems: "center",

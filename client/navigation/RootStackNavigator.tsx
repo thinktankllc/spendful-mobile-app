@@ -31,6 +31,9 @@ export default function RootStackNavigator() {
   const screenOptions = useScreenOptions();
   const opaqueScreenOptions = useScreenOptions({ transparent: false });
   const { isDark } = useTheme();
+  const headerBackgroundColor = isDark
+    ? Colors.dark.backgroundTertiary
+    : Colors.light.backgroundDefault;
 
   return (
     <Stack.Navigator screenOptions={screenOptions}>
@@ -74,11 +77,7 @@ export default function RootStackNavigator() {
         options={{
           ...opaqueScreenOptions,
           headerTitle: "Settings",
-          headerStyle: {
-            backgroundColor: isDark
-              ? Colors.dark.backgroundTertiary
-              : Colors.light.backgroundDefault,
-          },
+          headerStyle: { backgroundColor: headerBackgroundColor },
         }}
       />
       <Stack.Screen
@@ -87,6 +86,7 @@ export default function RootStackNavigator() {
         options={{
           ...opaqueScreenOptions,
           headerTitle: "Recurring Spending",
+          headerStyle: { backgroundColor: headerBackgroundColor },
         }}
       />
       <Stack.Screen
@@ -95,6 +95,7 @@ export default function RootStackNavigator() {
         options={{
           ...opaqueScreenOptions,
           headerTitle: "Recurring",
+          headerStyle: { backgroundColor: headerBackgroundColor },
         }}
       />
     </Stack.Navigator>
